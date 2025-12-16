@@ -1,0 +1,40 @@
+name: lock_in
+description: "LOCK-IN is a smart focus and study companion designed to help users enter a distraction-free study mode."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  cloud_firestore: ^6.1.1
+  firebase_analytics: ^12.1.0
+  firebase_auth: ^6.1.3
+  firebase_core: ^4.3.0
+  flutter:
+    sdk: flutter
+  flutter_launcher_icons: ^0.14.4
+  flutter_riverpod: ^3.0.3
+  flutter_svg: ^2.2.3
+  google_sign_in: ^6.2.1
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  permission_handler: ^12.0.1
+  riverpod: ^3.0.3
+  shimmer: ^3.0.0
+  smooth_page_indicator: ^2.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  hive_generator: ^2.0.1
+  build_runner: ^2.4.13
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/splash/
+  

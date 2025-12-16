@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "276612873176",
+    "project_id": "lock-in-6f9fc",
+    "storage_bucket": "lock-in-6f9fc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:276612873176:android:9d355c17fb47bb802d50ad",
+        "android_client_info": {
+          "package_name": "com.example.lock_in"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBcoTRyWGb7Y8S7KMWqH99lobyrd3VOiv0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
