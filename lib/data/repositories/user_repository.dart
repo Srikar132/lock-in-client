@@ -51,19 +51,50 @@ class UserRepository {
     String? preferredStudyTime,
   }) async {
     try {
-      final Map<String, dynamic> updates = {};
+      final defaultSettings = {
+        'hasCompletedOnboarding': true,
+        'focusSettings': {
+          'defaultDuration': 25, // in minutes (default: 25)
+          'timerMode': 'timer', // "timer" | "stopwatch" | "pomodoro"
+          'pomodoroSettings': {
+            'workDuration': 25, // 25 min
+            'shortBreak': 5, // 5 min
+            'longBreak': 15, // 15 min
+            'sessionsBeforeLongBreak': 4,
+          },
+          'autoStartBreaks': true,
+          'soundEnabled': true,
+          'vibrationEnabled': true,
+        },
+        'stats': {
+          "totalFocusTime": 0, // milliseconds
+          "totalSessions": 0,
+          "currentStreak": 0,
+          "longestStreak": 0,
+          "lastActiveDate": FieldValue.serverTimestamp(),
+          "todayScreenTime": 0,
+          "todayFocusTime": 0,
+        },
+      };
 
       if (procrastinationLevel != null) {
-        updates['procrastinationLevel'] = procrastinationLevel;
+        defaultSettings['procrastinationLevel'] = procrastinationLevel;
       }
       if (distractions != null) {
-        updates['distractions'] = distractions;
-      }
-      if (preferredStudyTime != null) {
-        updates['preferredStudyTime'] = preferredStudyTime;
+        defaultSettings['distractions'] = distractions;
       }
 
-      await _firestore.collection('users').doc(uid).update(updates);
+      if (procrastinationLevel != null) {
+        defaultSettings['procrastinationLevel'] = procrastinationLevel;
+      }
+      if (distractions != null) {
+        defaultSettings['distractions'] = distractions;
+      }
+      if (preferredStudyTime != null) {
+        defaultSettings['preferredStudyTime'] = preferredStudyTime;
+      }
+
+      await _firestore.collection('users').doc(uid).update(defaultSettings);
     } catch (e) {
       debugPrint('Error updating onboarding answers: $e');
       rethrow;
@@ -76,5 +107,62 @@ class UserRepository {
       if (!doc.exists) return null;
       return UserModel.fromFirestore(doc);
     });
+  }
+
+  Future<void> updateUserStatsAfterSession({
+    required String userId,
+    required int sessionDurationMinutes, // e.g., 25
+    required int todayDurationMinutes, // Tracked locally
+  }) async {
+    final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
+
+    // Convert minutes to milliseconds if your schema uses ms, or keep as minutes
+    final sessionTimeToAdd = sessionDurationMinutes;
+
+    try {
+      await userRef.update({
+        // 1. ATOMIC INCREMENTS (Safe & Fast)
+        // This adds to the existing value, it doesn't overwrite it.
+        'stats.totalFocusTime': FieldValue.increment(sessionTimeToAdd),
+        'stats.totalSessions': FieldValue.increment(1),
+
+        // 2. SIMPLE UPDATES
+        'stats.lastActiveDate': FieldValue.serverTimestamp(),
+
+        // 3. UPDATING "TODAY" STATS
+        // Note: "Today" logic is tricky in DBs.
+        // It's usually better to just set the new calculated value from the client
+        // or handle the reset logic separately.
+        'stats.todayFocusTime': FieldValue.increment(sessionTimeToAdd),
+      });
+
+      debugPrint("User stats updated successfully!");
+    } catch (e) {
+      debugPrint("Error updating stats: $e");
+    }
+  }
+
+  Future<void> updateAppLimit(
+    String userId,
+    String packageName,
+    int limitMinutes,
+  ) async {
+    // 1. Sanitize package name for Firestore keys (cannot contain dots if used directly,
+    // but usually fine in map values. If used as a key, replace '.' with '_')
+    try {
+      final safeKey = packageName.replaceAll('.', '_');
+
+      await FirebaseFirestore.instance.collection('users').doc(userId).update({
+        // Update specifically the entry for this app inside the 'appLimits' map
+        'appLimits.$safeKey': {
+          'dailyLimit': limitMinutes,
+          'actionOnExceed': 'block',
+          'isActive': true,
+        },
+      });
+    } catch (e) {
+      debugPrint('Error updating app limit: $e');
+      rethrow;
+    }
   }
 }

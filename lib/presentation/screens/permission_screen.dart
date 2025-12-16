@@ -668,46 +668,46 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
     );
   }
 
-  Widget _buildDebugPermissionRow(String name, bool granted, ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          Container(
-            width: 16,
-            height: 16,
-            decoration: BoxDecoration(
-              color: granted ? Colors.green : Colors.red,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              granted ? Icons.check : Icons.close,
-              size: 12,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              name,
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w500,
-                color: granted ? Colors.green.shade700 : Colors.red.shade700,
-              ),
-            ),
-          ),
-          Text(
-            granted ? 'GRANTED' : 'DENIED',
-            style: theme.textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              fontSize: 10,
-              color: granted ? Colors.green.shade700 : Colors.red.shade700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _buildDebugPermissionRow(String name, bool granted, ThemeData theme) {
+  //   return Padding(
+  //     padding: const EdgeInsets.symmetric(vertical: 2),
+  //     child: Row(
+  //       children: [
+  //         Container(
+  //           width: 16,
+  //           height: 16,
+  //           decoration: BoxDecoration(
+  //             color: granted ? Colors.green : Colors.red,
+  //             borderRadius: BorderRadius.circular(8),
+  //           ),
+  //           child: Icon(
+  //             granted ? Icons.check : Icons.close,
+  //             size: 12,
+  //             color: Colors.white,
+  //           ),
+  //         ),
+  //         const SizedBox(width: 8),
+  //         Expanded(
+  //           child: Text(
+  //             name,
+  //             style: theme.textTheme.bodySmall?.copyWith(
+  //               fontWeight: FontWeight.w500,
+  //               color: granted ? Colors.green.shade700 : Colors.red.shade700,
+  //             ),
+  //           ),
+  //         ),
+  //         Text(
+  //           granted ? 'GRANTED' : 'DENIED',
+  //           style: theme.textTheme.bodySmall?.copyWith(
+  //             fontWeight: FontWeight.bold,
+  //             fontSize: 10,
+  //             color: granted ? Colors.green.shade700 : Colors.red.shade700,
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 }
 
 class _PermissionTile extends StatefulWidget {
