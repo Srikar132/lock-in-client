@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lock_in/services/permissions_service.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
 import 'package:lock_in/data/repositories/user_repository.dart';
 
@@ -13,6 +12,9 @@ class PermissionState {
   final bool accessibilityPermission;
   final bool backgroundPermission;
   final bool displayPopupPermission;
+  final bool isChecking;
+  final bool isCompletingSetup;
+  final bool hasCompletedSetup;
 
   PermissionState({
     this.usagePermission = false,
@@ -21,15 +23,27 @@ class PermissionState {
     this.accessibilityPermission = false,
     this.backgroundPermission = false,
     this.displayPopupPermission = false,
+    this.isChecking = false,
+    this.isCompletingSetup = false,
+    this.hasCompletedSetup = false,
   });
 
   bool get allGranted =>
-      usagePermission && 
-      overlayPermission && 
-      notificationPermission && 
-      accessibilityPermission && 
-      backgroundPermission && 
-      displayPopupPermission;
+      usagePermission &&
+      overlayPermission &&
+      notificationPermission &&
+      accessibilityPermission &&
+      backgroundPermission;
+
+  int get grantedCount {
+    int count = 0;
+    if (usagePermission) count++;
+    if (overlayPermission) count++;
+    if (notificationPermission) count++;
+    if (accessibilityPermission) count++;
+    if (backgroundPermission) count++;
+    return count;
+  }
 
   PermissionState copyWith({
     bool? usagePermission,
@@ -38,6 +52,9 @@ class PermissionState {
     bool? accessibilityPermission,
     bool? backgroundPermission,
     bool? displayPopupPermission,
+    bool? isChecking,
+    bool? isCompletingSetup,
+    bool? hasCompletedSetup,
   }) {
     return PermissionState(
       usagePermission: usagePermission ?? this.usagePermission,
@@ -47,7 +64,11 @@ class PermissionState {
       accessibilityPermission:
           accessibilityPermission ?? this.accessibilityPermission,
       backgroundPermission: backgroundPermission ?? this.backgroundPermission,
-      displayPopupPermission: displayPopupPermission ?? this.displayPopupPermission,
+      displayPopupPermission:
+          displayPopupPermission ?? this.displayPopupPermission,
+      isChecking: isChecking ?? this.isChecking,
+      isCompletingSetup: isCompletingSetup ?? this.isCompletingSetup,
+      hasCompletedSetup: hasCompletedSetup ?? this.hasCompletedSetup,
     );
   }
 }
@@ -55,8 +76,6 @@ class PermissionState {
 // Permission notifier
 class PermissionNotifier extends Notifier<PermissionState> {
   late UserRepository _userRepository;
-  // here also get acces to currentUser
-  
 
   @override
   PermissionState build() {
@@ -66,73 +85,87 @@ class PermissionNotifier extends Notifier<PermissionState> {
 
   // Check all permissions
   Future<void> checkPermissions() async {
-    final usageGranted = await PermissionService.hasUsageStatsPermission();
-    final overlayGranted = await PermissionService.hasOverlayPermission();
-    final notificationGranted = await Permission.notification.isGranted;
-    final accessibilityGranted = await PermissionService.hasAccessibilityPermission();
-    final backgroundGranted = await PermissionService.hasBackgroundPermission();
-    final displayPopupGranted = await PermissionService.hasDisplayPopupPermission();
+    state = state.copyWith(isChecking: true);
 
-    state = state.copyWith(
-      usagePermission: usageGranted,
-      overlayPermission: overlayGranted,
-      notificationPermission: notificationGranted,
-      accessibilityPermission: accessibilityGranted,
-      backgroundPermission: backgroundGranted,
-      displayPopupPermission: displayPopupGranted,
-    );
+    try {
+      final usageGranted = await PermissionService.hasUsageStatsPermission();
+      final overlayGranted = await PermissionService.hasOverlayPermission();
+      final notificationGranted =
+          await PermissionService.hasNotificationPermission();
+      final accessibilityGranted =
+          await PermissionService.hasAccessibilityPermission();
+      final backgroundGranted =
+          await PermissionService.hasBackgroundPermission();
+      final displayPopupGranted =
+          await PermissionService.hasDisplayPopupPermission();
+
+      state = state.copyWith(
+        usagePermission: usageGranted,
+        overlayPermission: overlayGranted,
+        notificationPermission: notificationGranted,
+        accessibilityPermission: accessibilityGranted,
+        backgroundPermission: backgroundGranted,
+        displayPopupPermission: displayPopupGranted,
+        isChecking: false,
+      );
+    } catch (e) {
+      debugPrint('Error checking permissions: $e');
+      state = state.copyWith(isChecking: false);
+    }
   }
 
   // Request usage permission
   Future<void> requestUsagePermission() async {
     await PermissionService.requestUsageStatsPermission();
-    final granted = await PermissionService.hasUsageStatsPermission();
-    state = state.copyWith(usagePermission: granted);
+    // Don't check immediately - wait for user to return from settings
   }
 
   // Request overlay permission
   Future<void> requestOverlayPermission() async {
     await PermissionService.requestOverlayPermission();
-    final granted = await PermissionService.hasOverlayPermission();
-    state = state.copyWith(overlayPermission: granted);
   }
 
   // Request Background permission
   Future<void> requestBackgroundPermission() async {
     await PermissionService.requestBackgroundPermission();
-    final granted = await PermissionService.hasBackgroundPermission();
-    state = state.copyWith(backgroundPermission: granted);
   }
 
   // Request notification permission
   Future<void> requestNotificationPermission() async {
-    await Permission.notification.request();
-    final granted = await Permission.notification.isGranted;
+    await PermissionService.requestNotificationPermission();
+    // Check immediately for notification since it shows dialog
+    await Future.delayed(const Duration(milliseconds: 500));
+    final granted = await PermissionService.hasNotificationPermission();
     state = state.copyWith(notificationPermission: granted);
   }
 
-  // Request display popup permission
+  // Request display popup permission (same as overlay)
   Future<void> requestDisplayPopupPermission() async {
     await PermissionService.requestDisplayPopupPermission();
-    final granted = await PermissionService.hasDisplayPopupPermission();
-    state = state.copyWith(displayPopupPermission: granted);
   }
 
   // Request accessibility permission
   Future<void> requestAccessibilityPermission() async {
     await PermissionService.requestAccessibilityPermission();
-    final granted = await PermissionService.hasAccessibilityPermission();
-    state = state.copyWith(accessibilityPermission: granted);
   }
 
   // Complete permissions setup
   Future<void> completePermissions(String userId) async {
+    state = state.copyWith(isCompletingSetup: true);
+
     try {
       await _userRepository.updatePermissionStatus(userId, true);
+      state = state.copyWith(isCompletingSetup: false, hasCompletedSetup: true);
     } catch (e) {
       debugPrint('Error completing permissions: $e');
+      state = state.copyWith(isCompletingSetup: false);
       rethrow;
     }
+  }
+
+  // Reset completion status (useful for testing or re-setup)
+  void resetCompletion() {
+    state = state.copyWith(hasCompletedSetup: false);
   }
 }
 

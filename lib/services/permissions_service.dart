@@ -29,7 +29,6 @@ class PermissionService {
     }
   }
 
-
   /// Check if the app has accessibility permission.
   /// This permission is required for advanced app blocking functionality.
   static Future<bool> hasAccessibilityPermission() async {
@@ -115,6 +114,28 @@ class PermissionService {
       await _platform.invokeMethod('requestDisplayPopupPermission');
     } catch (e) {
       debugPrint('Error requesting display popup permission: $e');
+    }
+  }
+
+  /// Check if the app has notification permission.
+  /// This permission is required to send notifications to the user.
+  static Future<bool> hasNotificationPermission() async {
+    try {
+      final result = await _platform.invokeMethod('hasNotificationPermission');
+      return result as bool? ?? false;
+    } catch (e) {
+      debugPrint('Error checking notification permission: $e');
+      return false;
+    }
+  }
+
+  /// Request notification permission from the user.
+  /// Opens the notification settings or shows a system dialog.
+  static Future<void> requestNotificationPermission() async {
+    try {
+      await _platform.invokeMethod('requestNotificationPermission');
+    } catch (e) {
+      debugPrint('Error requesting notification permission: $e');
     }
   }
 }
