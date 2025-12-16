@@ -149,13 +149,16 @@ class PermissionNotifier extends Notifier<PermissionState> {
     await PermissionService.requestAccessibilityPermission();
   }
 
-  // Complete permissions setup
+  // Complete permissions setup and navigate to SplashScreen
   Future<void> completePermissions(String userId) async {
     state = state.copyWith(isCompletingSetup: true);
 
     try {
+      // Update permission status in Firestore
       await _userRepository.updatePermissionStatus(userId, true);
       state = state.copyWith(isCompletingSetup: false, hasCompletedSetup: true);
+      
+      debugPrint('Permissions completed successfully, navigating to SplashScreen');
     } catch (e) {
       debugPrint('Error completing permissions: $e');
       state = state.copyWith(isCompletingSetup: false);

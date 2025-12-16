@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:lock_in/presentation/providers/permission_provider.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
 import 'package:lock_in/widgets/permission_instruction_dialog.dart';
-import 'package:lock_in/widgets/permission_confirmation_dialog.dart';
+import 'package:lock_in/models/model_manager.dart';
 
 class PermissionScreen extends ConsumerStatefulWidget {
   const PermissionScreen({super.key});
@@ -24,7 +24,9 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
 
     // Initial permission check
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(permissionProvider.notifier).checkPermissions();
+      if (mounted) {
+        ref.read(permissionProvider.notifier).checkPermissions();
+      }
     });
   }
 
@@ -37,15 +39,24 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // When app returns to foreground, recheck all permissions
-    if (state == AppLifecycleState.resumed) {
-      ref.read(permissionProvider.notifier).checkPermissions();
+    // When app returns to foreground, recheck all permissions with a delay
+    if (state == AppLifecycleState.resumed && mounted) {
+      // Add a delay to ensure the app is fully resumed before checking
+      Future.delayed(const Duration(milliseconds: 1000), () {
+        if (mounted) {
+          ref.read(permissionProvider.notifier).checkPermissions();
+        }
+      });
     }
   }
 
   Future<void> _handlePermissionsCompleted(
     PermissionState permissionState,
   ) async {
+    if (!mounted) return;
+
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
     try {
       // Get current user from auth state
       final authState = ref.read(authStateProvider);
@@ -57,6 +68,14 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
             await ref
                 .read(permissionProvider.notifier)
                 .completePermissions(user.uid);
+            
+            // Navigate to SplashScreen after successful completion
+            if (mounted) {
+              Navigator.of(context).pushNamedAndRemoveUntil(
+                '/',
+                (route) => false,
+              );
+            }
           }
         },
         loading: () {},
@@ -64,42 +83,38 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to update account: $e')));
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('Failed to update account: $e')),
+        );
       }
     }
   }
 
-  Future<void> _showOverlayInstructionDialog(
-    BuildContext context,
-    PermissionNotifier permissionNotifier,
-  ) async {
-    await showModalBottomSheet(
+  Future<void> _showPermissionInstructionDialog({
+    required String title,
+    required String description,
+    required List<String> steps,
+    required String permissionType,
+    required VoidCallback onRequestPermission,
+  }) async {
+    await BottomSheetManager.show(
       context: context,
-      isScrollControlled: true,
-      builder: (context) => PermissionInstructionDialog(
-        title: 'Display Over Other Apps Permission',
-        description:
-            'This permission allows Lock-in to display blocking screens over other apps when you try to open distracting apps.',
-        steps: const [
-          'Tap "Open Settings" below',
-          'Find "Lock-in" in the app list',
-          'Toggle "Allow display over other apps" ON',
-          'Return to this app',
-        ],
+      child: PermissionInstructionDialog(
+        title: title,
+        description: description,
+        steps: steps,
         onAllowPressed: () async {
-          Navigator.of(context).pop();
-          await permissionNotifier.requestOverlayPermission();
+          if (Navigator.canPop(context)) {
+            Navigator.of(context).pop();
+          }
+          onRequestPermission();
 
           // Show confirmation dialog after user returns
-          if (context.mounted) {
+          if (mounted) {
             await Future.delayed(const Duration(milliseconds: 1000));
-            await _showPermissionConfirmationDialog(
-              context,
-              'overlay',
-              permissionNotifier,
-            );
+            if (mounted) {
+              await _showPermissionConfirmationDialog(permissionType);
+            }
           }
         },
         allowButtonText: 'Open Settings',
@@ -107,69 +122,152 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
     );
   }
 
-  Future<void> _showDisplayPopupInstructionDialog(
-    BuildContext context,
-    PermissionNotifier permissionNotifier,
-  ) async {
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => PermissionInstructionDialog(
-        title: 'Display Popup Windows Permission',
-        description:
-            'This permission allows Lock-in to show popup reminders and motivational messages to help you stay focused.',
-        steps: const [
-          'Tap "Open Settings" below',
-          'Find "Lock-in" in the Special App Access list',
-          'Look for "Display pop-up windows" or similar option',
-          'Toggle the permission ON',
-          'Return to this app',
-        ],
-        onAllowPressed: () async {
-          Navigator.of(context).pop();
-          await permissionNotifier.requestDisplayPopupPermission();
+  Future<void> _showPermissionConfirmationDialog(String permissionType) async {
+    if (!mounted) return;
 
-          // Show confirmation dialog after user returns
-          if (context.mounted) {
-            await Future.delayed(const Duration(milliseconds: 1000));
-            await _showPermissionConfirmationDialog(
-              context,
-              'displayPopup',
-              permissionNotifier,
-            );
-          }
-        },
-        allowButtonText: 'Open Settings',
-      ),
-    );
-  }
-
-  Future<void> _showPermissionConfirmationDialog(
-    BuildContext context,
-    String permissionType,
-    PermissionNotifier permissionNotifier,
-  ) async {
+    final permissionNotifier = ref.read(permissionProvider.notifier);
     String permissionName = permissionType == 'overlay'
         ? 'Display Over Other Apps'
         : 'Display Popup Windows';
 
     await showDialog(
       context: context,
-      builder: (context) => PermissionConfirmationDialog(
-        title: 'Permission Enabled?',
-        message:
-            'Have you enabled the $permissionName permission? We\'ll check if it\'s working now.',
-        onConfirmed: () async {
-          Navigator.of(context).pop();
-          await Future.delayed(const Duration(milliseconds: 500));
-          await permissionNotifier.checkPermissions();
-        },
-        onNotYet: () async {
-          Navigator.of(context).pop();
-          // Optionally show instructions again or just close
-        },
+      builder: (context) => AlertDialog(
+        title: const Text('Permission Enabled?'),
+        content: Text(
+          'Have you enabled the $permissionName permission? We\'ll check if it\'s working now.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              if (Navigator.canPop(context)) {
+                Navigator.of(context).pop();
+              }
+            },
+            child: const Text('Not Yet'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (Navigator.canPop(context)) {
+                Navigator.of(context).pop();
+              }
+              await Future.delayed(const Duration(milliseconds: 500));
+              if (mounted) {
+                await permissionNotifier.checkPermissions();
+              }
+            },
+            child: const Text('Yes, I enabled it'),
+          ),
+        ],
       ),
     );
+  }
+
+  Future<void> _showAllPermissionsConfirmationDialog() async {
+    if (!mounted) return;
+
+    final authState = ref.read(authStateProvider);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final theme = Theme.of(context);
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm All Permissions'),
+        content: const Text(
+          'Have you granted all the required permissions? This will complete your setup.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              if (Navigator.canPop(context)) {
+                Navigator.of(context).pop();
+              }
+            },
+            child: const Text('Not Yet'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (Navigator.canPop(context)) {
+                Navigator.of(context).pop();
+              }
+
+              // Recheck permissions first
+              await ref.read(permissionProvider.notifier).checkPermissions();
+
+              // Wait a bit for state to update
+              await Future.delayed(const Duration(milliseconds: 300));
+
+              if (!mounted) return;
+
+              final updatedPermissionState = ref.read(permissionProvider);
+
+              debugPrint('Updated Permission State: $updatedPermissionState');
+
+              // Check if all permissions are granted
+              if (updatedPermissionState.allGranted) {
+                // Complete permissions
+                await authState.when(
+                  data: (user) async {
+                    if (user != null) {
+                      try {
+                        await ref
+                            .read(permissionProvider.notifier)
+                            .completePermissions(user.uid);
+                        
+                        // Navigate to SplashScreen after successful completion
+                        if (mounted) {
+                          Navigator.of(context).pushNamedAndRemoveUntil(
+                            '/',
+                            (route) => false,
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          scaffoldMessenger.showSnackBar(
+                            SnackBar(
+                              content: Text('Error: ${e.toString()}'),
+                              backgroundColor: theme.colorScheme.error,
+                            ),
+                          );
+                        }
+                      }
+                    }
+                  },
+                  loading: () {},
+                  error: (error, stack) {},
+                );
+              } else {
+                // Show error - not all permissions granted
+                if (mounted) {
+                  scaffoldMessenger.showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Please grant all permissions before continuing. Missing: ${_getMissingPermissions(updatedPermissionState)}',
+                      ),
+                      backgroundColor: theme.colorScheme.error,
+                      duration: const Duration(seconds: 5),
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Yes, Complete Setup'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getMissingPermissions(PermissionState state) {
+    final missing = <String>[];
+    if (!state.usagePermission) missing.add('Usage Stats');
+    if (!state.backgroundPermission) missing.add('Background');
+    if (!state.overlayPermission) missing.add('Overlay');
+    if (!state.displayPopupPermission) missing.add('Display Popup');
+    if (!state.accessibilityPermission) missing.add('Accessibility');
+    return missing.join(', ');
   }
 
   @override
@@ -177,13 +275,18 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
     final theme = Theme.of(context);
     final permissionState = ref.watch(permissionProvider);
     final permissionNotifier = ref.read(permissionProvider.notifier);
+    debugPrint('Permission State Changed: $permissionState');
 
     // Listen for permission changes and complete setup when all are granted
     ref.listen(permissionProvider, (previous, current) {
+      if (!mounted) return;
+
       // Reset completion status if permissions are no longer all granted
       if (previous != null && previous.allGranted && !current.allGranted) {
         _hasCompletedPermissions = false;
       }
+
+      // PRIINT ALL PERMISSION TRUE OR FALSE WITH CLEAN PRINT TO IDENTITY
 
       // Handle completion when all permissions are granted for the first time
       if (previous != null &&
@@ -205,7 +308,9 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
           await permissionNotifier.requestUsagePermission();
           // Recheck after a short delay to allow settings to update
           await Future.delayed(const Duration(milliseconds: 500));
-          await permissionNotifier.checkPermissions();
+          if (mounted) {
+            await permissionNotifier.checkPermissions();
+          }
         },
       },
       {
@@ -217,22 +322,61 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
           await permissionNotifier.requestBackgroundPermission();
           // Recheck after a short delay
           await Future.delayed(const Duration(milliseconds: 500));
-          await permissionNotifier.checkPermissions();
+          if (mounted) {
+            await permissionNotifier.checkPermissions();
+          }
+        },
+      },
+      {
+        'title': 'Notification permission',
+        'description':
+            'Allow the app to send you notifications.',
+        'granted': permissionState.notificationPermission,
+        'onTap': () async {
+          await permissionNotifier.requestNotificationPermission();
+          // Recheck after a short delay
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (mounted) {
+            await permissionNotifier.checkPermissions();
+          }
         },
       },
       {
         'title': 'Display over other apps',
         'description': 'Show blocking screens when you open distracting apps.',
         'granted': permissionState.overlayPermission,
-        'onTap': () =>
-            _showOverlayInstructionDialog(context, permissionNotifier),
+        'onTap': () => _showPermissionInstructionDialog(
+          title: 'Display Over Other Apps Permission',
+          description:
+              'This permission allows Lock-in to display blocking screens over other apps when you try to open distracting apps.',
+          steps: const [
+            'Tap "Open Settings" below',
+            'Find "Lock-in" in the app list',
+            'Toggle "Allow display over other apps" ON',
+            'Return to this app',
+          ],
+          permissionType: 'overlay',
+          onRequestPermission: permissionNotifier.requestOverlayPermission,
+        ),
       },
       {
         'title': 'Display pop up permission',
         'description': 'Show focus reminders and motivational popups.',
         'granted': permissionState.displayPopupPermission,
-        'onTap': () =>
-            _showDisplayPopupInstructionDialog(context, permissionNotifier),
+        'onTap': () => _showPermissionInstructionDialog(
+          title: 'Display Popup Windows Permission',
+          description:
+              'This permission allows Lock-in to show popup reminders and motivational messages to help you stay focused.',
+          steps: const [
+            'Tap "Open Settings" below',
+            'Find "Lock-in" in the Special App Access list',
+            'Look for "Display pop-up windows" or similar option',
+            'Toggle the permission ON',
+            'Return to this app',
+          ],
+          permissionType: 'displayPopup',
+          onRequestPermission: permissionNotifier.requestDisplayPopupPermission,
+        ),
       },
       {
         'title': 'Accessibility Permission',
@@ -241,7 +385,9 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
         'onTap': () async {
           await permissionNotifier.requestAccessibilityPermission();
           await Future.delayed(const Duration(milliseconds: 500));
-          await permissionNotifier.checkPermissions();
+          if (mounted) {
+            await permissionNotifier.checkPermissions();
+          }
         },
       },
     ];
@@ -335,41 +481,94 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
 
               const SizedBox(height: 24),
 
-              // // Debug info (remove in production)
+              // // Debug Card - Permission Status
               // Container(
-              //   padding: const EdgeInsets.all(12),
+              //   margin: const EdgeInsets.only(bottom: 16),
+              //   padding: const EdgeInsets.all(16),
               //   decoration: BoxDecoration(
-              //     color: Colors.blue.withOpacity(0.1),
-              //     borderRadius: BorderRadius.circular(8),
+              //     color: theme.colorScheme.errorContainer.withOpacity(0.3),
+              //     borderRadius: BorderRadius.circular(12),
+              //     border: Border.all(
+              //       color: theme.colorScheme.error.withOpacity(0.5),
+              //       width: 1,
+              //     ),
               //   ),
               //   child: Column(
               //     crossAxisAlignment: CrossAxisAlignment.start,
               //     children: [
-              //       Text(
-              //         'Debug Info:',
-              //         style: theme.textTheme.labelSmall?.copyWith(
-              //           color: Colors.blue,
-              //           fontWeight: FontWeight.bold,
+              //       Row(
+              //         children: [
+              //           Icon(
+              //             Icons.bug_report,
+              //             color: theme.colorScheme.error,
+              //             size: 20,
+              //           ),
+              //           const SizedBox(width: 8),
+              //           Text(
+              //             'DEBUG: Permission Status',
+              //             style: theme.textTheme.titleSmall?.copyWith(
+              //               color: theme.colorScheme.error,
+              //               fontWeight: FontWeight.bold,
+              //             ),
+              //           ),
+              //         ],
+              //       ),
+              //       const SizedBox(height: 12),
+              //       _buildDebugPermissionRow(
+              //         'Usage Stats',
+              //         permissionState.usagePermission,
+              //         theme,
+              //       ),
+              //       _buildDebugPermissionRow(
+              //         'Accessibility',
+              //         permissionState.accessibilityPermission,
+              //         theme,
+              //       ),
+              //       _buildDebugPermissionRow(
+              //         'Background',
+              //         permissionState.backgroundPermission,
+              //         theme,
+              //       ),
+              //       _buildDebugPermissionRow(
+              //         'Overlay',
+              //         permissionState.overlayPermission,
+              //         theme,
+              //       ),
+              //       _buildDebugPermissionRow(
+              //         'Display Popup',
+              //         permissionState.displayPopupPermission,
+              //         theme,
+              //       ),
+              //       _buildDebugPermissionRow(
+              //         'Notification',
+              //         permissionState.notificationPermission,
+              //         theme,
+              //       ),
+              //       const SizedBox(height: 8),
+              //       Container(
+              //         padding: const EdgeInsets.symmetric(
+              //           horizontal: 8,
+              //           vertical: 4,
               //         ),
-              //       ),
-              //       const SizedBox(height: 4),
-              //       Text(
-              //         'Background: ${permissionState.backgroundPermission}',
-              //         style: theme.textTheme.labelSmall?.copyWith(color: Colors.blue),
-              //       ),
-              //       Text(
-              //         'Usage: ${permissionState.usagePermission}',
-              //         style: theme.textTheme.labelSmall?.copyWith(color: Colors.blue),
-              //       ),
-              //       Text(
-              //         'Overlay: ${permissionState.overlayPermission}',
-              //         style: theme.textTheme.labelSmall?.copyWith(color: Colors.blue),
+              //         decoration: BoxDecoration(
+              //           color: permissionState.allGranted
+              //               ? Colors.green.withOpacity(0.2)
+              //               : Colors.orange.withOpacity(0.2),
+              //           borderRadius: BorderRadius.circular(6),
+              //         ),
+              //         child: Text(
+              //           'All Granted: ${permissionState.allGranted ? "✅ YES" : "❌ NO"}',
+              //           style: theme.textTheme.bodySmall?.copyWith(
+              //             fontWeight: FontWeight.bold,
+              //             color: permissionState.allGranted
+              //                 ? Colors.green
+              //                 : Colors.orange,
+              //           ),
+              //         ),
               //       ),
               //     ],
               //   ),
               // ),
-
-              // const SizedBox(height: 16),
 
               // Permission list
               Expanded(
@@ -446,12 +645,66 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
                     textAlign: TextAlign.center,
                   ),
 
+                  const SizedBox(height: 16),
+
+                  // Complete Setup Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        await _showAllPermissionsConfirmationDialog();
+                      },
+                      child: const Text('Complete Setup'),
+                    ),
+                  ),
+
                   const SizedBox(height: 20),
                 ],
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDebugPermissionRow(String name, bool granted, ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Container(
+            width: 16,
+            height: 16,
+            decoration: BoxDecoration(
+              color: granted ? Colors.green : Colors.red,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              granted ? Icons.check : Icons.close,
+              size: 12,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              name,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w500,
+                color: granted ? Colors.green.shade700 : Colors.red.shade700,
+              ),
+            ),
+          ),
+          Text(
+            granted ? 'GRANTED' : 'DENIED',
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              fontSize: 10,
+              color: granted ? Colors.green.shade700 : Colors.red.shade700,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -529,7 +782,9 @@ class _PermissionTileState extends State<_PermissionTile> {
                     ),
                     child: GestureDetector(
                       onTap: () async {
-                        setState(() => _isLoading = true);
+                        if (mounted) {
+                          setState(() => _isLoading = true);
+                        }
                         try {
                           await widget.onTap();
                         } finally {
@@ -604,7 +859,11 @@ void _showPermissionInfoDialog(BuildContext context) {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            }
+          },
           child: const Text('Got it'),
         ),
       ],

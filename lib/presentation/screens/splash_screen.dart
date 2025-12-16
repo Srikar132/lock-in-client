@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
 import 'package:lock_in/presentation/screens/entry_screen.dart';
+import 'package:lock_in/presentation/screens/home_screen.dart';
 import 'package:lock_in/presentation/screens/onboarding/onboarding_screen.dart';
 import 'package:lock_in/presentation/screens/permission_screen.dart';
 
@@ -56,23 +57,7 @@ class SplashScreen extends ConsumerWidget {
         }
 
         // Everything completed - show home
-        return const Scaffold(
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.home, size: 64),
-                SizedBox(height: 16),
-                Text(
-                  'Welcome Home!',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 8),
-                Text('You\'re all set up and ready to Lock In!'),
-              ],
-            ),
-          ),
-        );
+        return const HomeScreen();
       },
       loading: () => const _LoadingScreen(),
       error: (error, _) => _ErrorScreen(

@@ -27,7 +27,7 @@ void main() async {
 
   // Initialize Firebase
   await Firebase.initializeApp();
-  
+
   // Enable Firebase offline persistence (replaces need for Hive in many cases)
   FirebaseFirestore.instance.settings = const Settings(
     persistenceEnabled: true,
@@ -46,12 +46,57 @@ class LockInApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      // the name , home , routes ,
       title: 'Lock In',
       debugShowCheckedModeBanner: false,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.dark,
       home: const SplashScreen(),
+      // Add error handling for navigation issues
+      builder: (context, child) {
+        ErrorWidget.builder = (FlutterErrorDetails errorDetails) {
+          return Material(
+            child: Container(
+              color: Colors.red,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error, color: Colors.white, size: 48),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Navigation Error',
+                      style: TextStyle(color: Colors.white, fontSize: 20),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      errorDetails.exception.toString(),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        // Try to restart the app
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => const SplashScreen(),
+                          ),
+                          (route) => false,
+                        );
+                      },
+                      child: const Text('Restart App'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        };
+        return child ?? const SizedBox();
+      },
     );
   }
 }

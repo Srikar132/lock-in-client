@@ -12,6 +12,7 @@ import android.provider.Settings
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import com.example.lock_in.services.LockInAccessibilityService
+import java.lang.reflect.Method
 
 class PermissionManager(private val activity: Activity) {
 
@@ -27,7 +28,12 @@ class PermissionManager(private val activity: Activity) {
     // USAGE STATS PERMISSION
     fun hasUsageStatsPermission(): Boolean {
         return try {
-            val appOps = activity.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+            val appOps = activity.getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager
+            if (appOps == null) {
+                Log.e(TAG, "AppOpsManager is null")
+                return false
+            }
+
             val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 appOps.unsafeCheckOpNoThrow(
                     AppOpsManager.OPSTR_GET_USAGE_STATS,
@@ -107,18 +113,21 @@ class PermissionManager(private val activity: Activity) {
             }
 
             // Also check using AccessibilityManager (more reliable method)
-            val accessibilityManager = activity.getSystemService(Context.ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager
-            val enabledServicesList = accessibilityManager.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+            val accessibilityManager = activity.getSystemService(Context.ACCESSIBILITY_SERVICE) as? android.view.accessibility.AccessibilityManager
             
             var serviceRunning = false
-            for (serviceInfo in enabledServicesList) {
-                val serviceId = serviceInfo.id
-                Log.d(TAG, "Running accessibility service: $serviceId")
-                if (serviceId.contains("LockInAccessibilityService") || 
-                    serviceId.contains(activity.packageName)) {
-                    serviceRunning = true
-                    Log.d(TAG, "Our accessibility service is running: $serviceId")
-                    break
+            if (accessibilityManager != null) {
+                val enabledServicesList = accessibilityManager.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+                
+                for (serviceInfo in enabledServicesList) {
+                    val serviceId = serviceInfo.id
+                    Log.d(TAG, "Running accessibility service: $serviceId")
+                    if (serviceId.contains("LockInAccessibilityService") || 
+                        serviceId.contains(activity.packageName)) {
+                        serviceRunning = true
+                        Log.d(TAG, "Our accessibility service is running: $serviceId")
+                        break
+                    }
                 }
             }
 
@@ -216,7 +225,12 @@ class PermissionManager(private val activity: Activity) {
     fun hasBackgroundPermission(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             try {
-                val powerManager = activity.getSystemService(Context.POWER_SERVICE) as PowerManager
+                val powerManager = activity.getSystemService(Context.POWER_SERVICE) as? PowerManager
+                if (powerManager == null) {
+                    Log.e(TAG, "PowerManager is null")
+                    return false
+                }
+
                 val packageName = activity.packageName
                 val granted = powerManager.isIgnoringBatteryOptimizations(packageName)
                 
@@ -308,8 +322,8 @@ class PermissionManager(private val activity: Activity) {
             Log.d(TAG, "Notification Permission (API 33+): $granted")
             granted
         } else {
-            val notificationManager = activity.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val granted = notificationManager.areNotificationsEnabled()
+            val notificationManager = activity.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            val granted = notificationManager?.areNotificationsEnabled() ?: false
             Log.d(TAG, "Notification Permission: $granted")
             granted
         }
@@ -337,10 +351,10 @@ class PermissionManager(private val activity: Activity) {
         }
     }
 
-    fun hasDisplayPopupPermission(context: Context): Boolean {
+    fun hasDisplayPopupPermission(): Boolean {
         // 1. First, check standard Overlay permission (Baseline requirement)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (!Settings.canDrawOverlays(context)) {
+            if (!Settings.canDrawOverlays(activity)) {
                 return false
             }
         }
@@ -349,9 +363,14 @@ class PermissionManager(private val activity: Activity) {
         // "Display pop-ups while running in background" is usually AppOps code 10021
         if (isXiaomi()) {
             try {
-                val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+                val appOps = activity.getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager
+                if (appOps == null) {
+                    Log.e(TAG, "AppOpsManager is null")
+                    return true // Fallback to standard overlay check
+                }
+
                 val callingUid = android.os.Process.myUid()
-                val pkgName = context.packageName
+                val pkgName = activity.packageName
                 
                 val appOpsClass = Class.forName(AppOpsManager::class.java.name)
                 val checkOpMethod: Method = appOpsClass.getMethod(
@@ -367,7 +386,7 @@ class PermissionManager(private val activity: Activity) {
 
                 return mode == AppOpsManager.MODE_ALLOWED
             } catch (e: Exception) {
-                Log.e("PermissionCheck", "Failed to check MIUI specific permission", e)
+                Log.e(TAG, "Failed to check MIUI specific permission", e)
                 // If reflection fails, we fallback to standard overlay check (better safe than sorry)
                 return true 
             }
@@ -377,23 +396,31 @@ class PermissionManager(private val activity: Activity) {
         return true
     }
 
-    fun requestDisplayPopupPermission(context: Context) {
+    fun requestDisplayPopupPermission() {
+        // 1. Try Xiaomi specific page first
         if (isXiaomi()) {
             try {
-                // Try to open the specific MIUI permission page
                 val intent = Intent("miui.intent.action.APP_PERM_EDITOR")
                 intent.setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.PermissionsEditorActivity")
-                intent.putExtra("extra_pkgname", context.packageName)
-                context.startActivity(intent)
+                intent.putExtra("extra_pkgname", activity.packageName)
+                activity.startActivity(intent)
                 return
             } catch (e: Exception) {
-                Log.e("PermissionRequest", "Failed to open MIUI permission page", e)
+                Log.e(TAG, "Failed to open MIUI permission page", e)
+                // Continue to fallback if this fails
             }
         }
 
-        // Fallback to standard overlay permission page
-        val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
-        context.startActivity(intent)
+        // 2. Fallback: Open the App Info / Settings page for this app
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            intent.data = Uri.parse("package:${activity.packageName}")
+            activity.startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to open App Info settings", e)
+            // Absolute last resort: Open general settings
+            activity.startActivity(Intent(Settings.ACTION_SETTINGS))
+        }
     }
 
     // Helper to detect Xiaomi devices
@@ -402,7 +429,4 @@ class PermissionManager(private val activity: Activity) {
             Build.MANUFACTURER.equals("Redmi", ignoreCase = true) ||
             Build.MANUFACTURER.equals("Poco", ignoreCase = true)
     }
-
-
-   
 }
