@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:lock_in/presentation/providers/permission_provider.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
+import 'package:lock_in/widgets/permission_instruction_dialog.dart';
+import 'package:lock_in/widgets/permission_confirmation_dialog.dart';
 
 class PermissionScreen extends ConsumerStatefulWidget {
   const PermissionScreen({super.key});
@@ -57,12 +59,8 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
                 .completePermissions(user.uid);
           }
         },
-        loading: () {
-         
-        },
-        error: (error, stack) {
-         
-        },
+        loading: () {},
+        error: (error, stack) {},
       );
     } catch (e) {
       if (mounted) {
@@ -73,6 +71,106 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
     }
   }
 
+  Future<void> _showOverlayInstructionDialog(
+    BuildContext context,
+    PermissionNotifier permissionNotifier,
+  ) async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => PermissionInstructionDialog(
+        title: 'Display Over Other Apps Permission',
+        description:
+            'This permission allows Lock-in to display blocking screens over other apps when you try to open distracting apps.',
+        steps: const [
+          'Tap "Open Settings" below',
+          'Find "Lock-in" in the app list',
+          'Toggle "Allow display over other apps" ON',
+          'Return to this app',
+        ],
+        onAllowPressed: () async {
+          Navigator.of(context).pop();
+          await permissionNotifier.requestOverlayPermission();
+
+          // Show confirmation dialog after user returns
+          if (context.mounted) {
+            await Future.delayed(const Duration(milliseconds: 1000));
+            await _showPermissionConfirmationDialog(
+              context,
+              'overlay',
+              permissionNotifier,
+            );
+          }
+        },
+        allowButtonText: 'Open Settings',
+      ),
+    );
+  }
+
+  Future<void> _showDisplayPopupInstructionDialog(
+    BuildContext context,
+    PermissionNotifier permissionNotifier,
+  ) async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => PermissionInstructionDialog(
+        title: 'Display Popup Windows Permission',
+        description:
+            'This permission allows Lock-in to show popup reminders and motivational messages to help you stay focused.',
+        steps: const [
+          'Tap "Open Settings" below',
+          'Find "Lock-in" in the Special App Access list',
+          'Look for "Display pop-up windows" or similar option',
+          'Toggle the permission ON',
+          'Return to this app',
+        ],
+        onAllowPressed: () async {
+          Navigator.of(context).pop();
+          await permissionNotifier.requestDisplayPopupPermission();
+
+          // Show confirmation dialog after user returns
+          if (context.mounted) {
+            await Future.delayed(const Duration(milliseconds: 1000));
+            await _showPermissionConfirmationDialog(
+              context,
+              'displayPopup',
+              permissionNotifier,
+            );
+          }
+        },
+        allowButtonText: 'Open Settings',
+      ),
+    );
+  }
+
+  Future<void> _showPermissionConfirmationDialog(
+    BuildContext context,
+    String permissionType,
+    PermissionNotifier permissionNotifier,
+  ) async {
+    String permissionName = permissionType == 'overlay'
+        ? 'Display Over Other Apps'
+        : 'Display Popup Windows';
+
+    await showDialog(
+      context: context,
+      builder: (context) => PermissionConfirmationDialog(
+        title: 'Permission Enabled?',
+        message:
+            'Have you enabled the $permissionName permission? We\'ll check if it\'s working now.',
+        onConfirmed: () async {
+          Navigator.of(context).pop();
+          await Future.delayed(const Duration(milliseconds: 500));
+          await permissionNotifier.checkPermissions();
+        },
+        onNotYet: () async {
+          Navigator.of(context).pop();
+          // Optionally show instructions again or just close
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -96,7 +194,6 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
         _hasCompletedPermissions = true;
         _handlePermissionsCompleted(current);
       }
-
     });
 
     final permissions = [
@@ -127,21 +224,15 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
         'title': 'Display over other apps',
         'description': 'Show blocking screens when you open distracting apps.',
         'granted': permissionState.overlayPermission,
-        'onTap': () async {
-          await permissionNotifier.requestOverlayPermission();
-          await Future.delayed(const Duration(milliseconds: 500));
-          await permissionNotifier.checkPermissions();
-        },
+        'onTap': () =>
+            _showOverlayInstructionDialog(context, permissionNotifier),
       },
       {
         'title': 'Display pop up permission',
         'description': 'Show focus reminders and motivational popups.',
         'granted': permissionState.displayPopupPermission,
-        'onTap': () async {
-          await permissionNotifier.requestDisplayPopupPermission();
-          await Future.delayed(const Duration(milliseconds: 500));
-          await permissionNotifier.checkPermissions();
-        },
+        'onTap': () =>
+            _showDisplayPopupInstructionDialog(context, permissionNotifier),
       },
       {
         'title': 'Accessibility Permission',
@@ -297,12 +388,8 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
                 ),
               ),
 
-
               Column(
                 children: [
-
-
-
                   const SizedBox(height: 8),
 
                   // Info button

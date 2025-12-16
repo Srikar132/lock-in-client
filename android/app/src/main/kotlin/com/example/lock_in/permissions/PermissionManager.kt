@@ -11,6 +11,7 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
+import com.example.lock_in.services.LockInAccessibilityService
 
 class PermissionManager(private val activity: Activity) {
 
@@ -70,13 +71,70 @@ class PermissionManager(private val activity: Activity) {
     // ACCESSIBILITY PERMISSION
     fun hasAccessibilityPermission(): Boolean {
         return try {
+            // First check if accessibility is globally enabled
             val accessibilityEnabled = Settings.Secure.getInt(
                 activity.contentResolver,
                 Settings.Secure.ACCESSIBILITY_ENABLED,
                 0
+            ) == 1
+
+            if (!accessibilityEnabled) {
+                Log.d(TAG, "Accessibility is not globally enabled")
+                return false
+            }
+
+            // Check if our specific accessibility service is enabled
+            val enabledServices = Settings.Secure.getString(
+                activity.contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            ) ?: ""
+
+            // Try multiple possible service name formats
+            val possibleServiceNames = listOf(
+                "${activity.packageName}/.services.LockInAccessibilityService",
+                "${activity.packageName}/com.example.lock_in.services.LockInAccessibilityService",
+                "com.example.lock_in/.services.LockInAccessibilityService",
+                "com.example.lock_in/com.example.lock_in.services.LockInAccessibilityService"
             )
-            val granted = accessibilityEnabled == 1
-            Log.d(TAG, "Accessibility Permission: $granted")
+
+            var serviceFound = false
+            for (serviceName in possibleServiceNames) {
+                if (enabledServices.contains(serviceName)) {
+                    serviceFound = true
+                    Log.d(TAG, "Found accessibility service: $serviceName")
+                    break
+                }
+            }
+
+            // Also check using AccessibilityManager (more reliable method)
+            val accessibilityManager = activity.getSystemService(Context.ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager
+            val enabledServicesList = accessibilityManager.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+            
+            var serviceRunning = false
+            for (serviceInfo in enabledServicesList) {
+                val serviceId = serviceInfo.id
+                Log.d(TAG, "Running accessibility service: $serviceId")
+                if (serviceId.contains("LockInAccessibilityService") || 
+                    serviceId.contains(activity.packageName)) {
+                    serviceRunning = true
+                    Log.d(TAG, "Our accessibility service is running: $serviceId")
+                    break
+                }
+            }
+
+            // Also check if our service reports itself as running
+            val serviceReportsRunning = LockInAccessibilityService.isServiceRunning
+
+            val granted = serviceFound || serviceRunning || serviceReportsRunning
+
+            Log.d(TAG, "Accessibility Permission Check:")
+            Log.d(TAG, "- Global enabled: $accessibilityEnabled")
+            Log.d(TAG, "- Service found in settings: $serviceFound")
+            Log.d(TAG, "- Service actually running: $serviceRunning")
+            Log.d(TAG, "- Service reports running: $serviceReportsRunning")
+            Log.d(TAG, "- Final result: $granted")
+            Log.d(TAG, "- Enabled services string: $enabledServices")
+
             granted
         } catch (e: Exception) {
             Log.e(TAG, "Error checking accessibility permission", e)
@@ -87,10 +145,70 @@ class PermissionManager(private val activity: Activity) {
     fun requestAccessibilityPermission() {
         try {
             Log.d(TAG, "Requesting Accessibility Permission")
+            
+            // First try to open the specific service settings
+            try {
+                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                // Add extra data to help navigate to our service
+                intent.putExtra("android.provider.extra.ACCESSIBILITY_SERVICE_COMPONENT_NAME", 
+                    "${activity.packageName}/.services.LockInAccessibilityService")
+                activity.startActivity(intent)
+                return
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to open specific accessibility service settings, opening general settings", e)
+            }
+            
+            // Fallback to general accessibility settings
             val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
             activity.startActivity(intent)
         } catch (e: Exception) {
             Log.e(TAG, "Error requesting accessibility permission", e)
+        }
+    }
+
+    // Debug method to help troubleshoot accessibility permission issues
+    fun debugAccessibilityPermission(): String {
+        return try {
+            val sb = StringBuilder()
+            
+            // Check global accessibility
+            val accessibilityEnabled = Settings.Secure.getInt(
+                activity.contentResolver,
+                Settings.Secure.ACCESSIBILITY_ENABLED,
+                0
+            ) == 1
+            sb.appendLine("Global Accessibility Enabled: $accessibilityEnabled")
+            
+            // Get enabled services
+            val enabledServices = Settings.Secure.getString(
+                activity.contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            ) ?: ""
+            sb.appendLine("Enabled Services: $enabledServices")
+            
+            // Check our service status
+            val serviceRunning = LockInAccessibilityService.isServiceRunning
+            sb.appendLine("Our Service Running: $serviceRunning")
+            
+            // Package name
+            sb.appendLine("Package Name: ${activity.packageName}")
+            
+            // Expected service names
+            sb.appendLine("Expected Service Names:")
+            val possibleNames = listOf(
+                "${activity.packageName}/.services.LockInAccessibilityService",
+                "${activity.packageName}/com.example.lock_in.services.LockInAccessibilityService",
+                "com.example.lock_in/.services.LockInAccessibilityService",
+                "com.example.lock_in/com.example.lock_in.services.LockInAccessibilityService"
+            )
+            possibleNames.forEach { name ->
+                val found = enabledServices.contains(name)
+                sb.appendLine("  - $name: $found")
+            }
+            
+            sb.toString()
+        } catch (e: Exception) {
+            "Error getting debug info: $e"
         }
     }
 
@@ -219,15 +337,72 @@ class PermissionManager(private val activity: Activity) {
         }
     }
 
-    // DISPLAY POPUP PERMISSION (same as overlay)
-    fun hasDisplayPopupPermission(): Boolean {
-        val granted = hasOverlayPermission()
-        Log.d(TAG, "Display Popup Permission (same as overlay): $granted")
-        return granted
+    fun hasDisplayPopupPermission(context: Context): Boolean {
+        // 1. First, check standard Overlay permission (Baseline requirement)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.canDrawOverlays(context)) {
+                return false
+            }
+        }
+
+        // 2. SPECIFIC CHECK FOR XIAOMI (MIUI)
+        // "Display pop-ups while running in background" is usually AppOps code 10021
+        if (isXiaomi()) {
+            try {
+                val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+                val callingUid = android.os.Process.myUid()
+                val pkgName = context.packageName
+                
+                val appOpsClass = Class.forName(AppOpsManager::class.java.name)
+                val checkOpMethod: Method = appOpsClass.getMethod(
+                    "checkOpNoThrow", 
+                    Int::class.javaPrimitiveType, 
+                    Int::class.javaPrimitiveType, 
+                    String::class.java
+                )
+                
+                // 10021 is the magic number for OP_BACKGROUND_START_ACTIVITY on MIUI
+                val opBackgroundStartActivity = 10021 
+                val mode = checkOpMethod.invoke(appOps, opBackgroundStartActivity, callingUid, pkgName) as Int
+
+                return mode == AppOpsManager.MODE_ALLOWED
+            } catch (e: Exception) {
+                Log.e("PermissionCheck", "Failed to check MIUI specific permission", e)
+                // If reflection fails, we fallback to standard overlay check (better safe than sorry)
+                return true 
+            }
+        }
+
+        // For non-Xiaomi devices, the standard overlay permission is usually enough
+        return true
     }
 
-    fun requestDisplayPopupPermission() {
-        Log.d(TAG, "Display Popup Permission request (redirecting to overlay)")
-        requestOverlayPermission()
+    fun requestDisplayPopupPermission(context: Context) {
+        if (isXiaomi()) {
+            try {
+                // Try to open the specific MIUI permission page
+                val intent = Intent("miui.intent.action.APP_PERM_EDITOR")
+                intent.setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.PermissionsEditorActivity")
+                intent.putExtra("extra_pkgname", context.packageName)
+                context.startActivity(intent)
+                return
+            } catch (e: Exception) {
+                Log.e("PermissionRequest", "Failed to open MIUI permission page", e)
+            }
+        }
+
+        // Fallback to standard overlay permission page
+        val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
+        context.startActivity(intent)
     }
+
+    // Helper to detect Xiaomi devices
+    fun isXiaomi(): Boolean {
+        return Build.MANUFACTURER.equals("Xiaomi", ignoreCase = true) || 
+            Build.MANUFACTURER.equals("Redmi", ignoreCase = true) ||
+            Build.MANUFACTURER.equals("Poco", ignoreCase = true)
+    }
+
+
+   
 }

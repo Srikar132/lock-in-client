@@ -73,6 +73,11 @@ class MainActivity: FlutterActivity() {
                         result.success(null)
                     }
                     
+                    // Debug method
+                    "debugAccessibilityPermission" -> {
+                        result.success(permissionManager.debugAccessibilityPermission())
+                    }
+
                     else -> {
                         result.notImplemented()
                     }

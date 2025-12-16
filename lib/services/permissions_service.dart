@@ -138,4 +138,16 @@ class PermissionService {
       debugPrint('Error requesting notification permission: $e');
     }
   }
+
+  /// Debug method to get detailed accessibility permission information.
+  /// Returns a detailed string with debugging information about accessibility service status.
+  static Future<String> debugAccessibilityPermission() async {
+    try {
+      final result = await _platform.invokeMethod('debugAccessibilityPermission');
+      return result as String? ?? 'No debug info available';
+    } catch (e) {
+      debugPrint('Error getting accessibility debug info: $e');
+      return 'Error getting debug info: $e';
+    }
+  }
 }
