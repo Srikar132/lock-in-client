@@ -269,7 +269,7 @@ class FocusModeManager private constructor(private val context: Context) {
                     completionRate = calculateCompletionRate(session),
                     startTime = session.startTime,
                     endTime = endTime,
-                    interruptions = 0 // TODO: Track interruptions
+                    interruptions = 0 // TODO: Implement interruption tracking in future phase
                 )
                 
                 // Deactivate blocking services
@@ -619,7 +619,10 @@ class FocusModeManager private constructor(private val context: Context) {
      */
     private fun clearSessionFromPrefs() {
         try {
-            prefs.edit().clear().apply()
+            prefs.edit()
+                .remove(KEY_SESSION_DATA)
+                .remove(KEY_SESSION_STATE)
+                .apply()
             Log.d(TAG, "Session cleared from preferences")
         } catch (e: Exception) {
             Log.e(TAG, "Error clearing session from preferences", e)
@@ -711,7 +714,9 @@ data class SessionState(
     val pausedTime: Long
 ) {
     fun toJson(): String {
-        // Simple JSON serialization
+        // NOTE: Basic JSON serialization for session persistence
+        // TODO: For production, migrate to kotlinx.serialization or Gson for robust JSON handling
+        // Current implementation assumes clean data without special characters
         return """
             {
                 "sessionId": "$sessionId",
@@ -732,8 +737,9 @@ data class SessionState(
     
     companion object {
         fun fromJson(json: String): SessionState {
-            // Simple JSON deserialization - in production, use a proper JSON library
-            // This is a basic implementation for demonstration
+            // NOTE: Basic JSON deserialization for session restoration
+            // TODO: For production, migrate to kotlinx.serialization or Gson for robust JSON handling
+            // Current implementation uses regex for simple parsing
             val sessionIdRegex = """"sessionId":\s*"([^"]+)"""".toRegex()
             val statusRegex = """"status":\s*"([^"]+)"""".toRegex()
             val startTimeRegex = """"startTime":\s*(\d+)""".toRegex()
