@@ -198,6 +198,17 @@ class BlockedContentModel {
     return shortFormBlocks[key]?.isBlocked ?? false;
   }
 
+  // Get all blocked app count
+  int get blockedAppsCount => permanentlyBlockedApps.length;
+
+  // Get all blocked websites count
+  int get blockedWebsitesCount =>
+      blockedWebsites.where((w) => w.isActive).length;
+
+  // Get all blocked short forms count
+  int get blockedShortFormsCount =>
+      shortFormBlocks.values.where((b) => b.isBlocked).length;
+
   @override
   String toString() {
     return 'BlockedContentModel(permanentlyBlockedApps: $permanentlyBlockedApps, blockedWebsites: $blockedWebsites, shortFormBlocks: $shortFormBlocks, lastUpdated: $lastUpdated)';

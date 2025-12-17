@@ -74,6 +74,58 @@ class AppLimitModel {
     );
   }
 
+  // Helper: Check if daily limit is exceeded
+  bool isDailyLimitExceeded(int usedMinutes) {
+    return dailyLimit > 0 && usedMinutes >= dailyLimit;
+  }
+
+  // Helper: Check if weekly limit is exceeded
+  bool isWeeklyLimitExceeded(int usedMinutes) {
+    return weeklyLimit > 0 && usedMinutes >= weeklyLimit;
+  }
+
+  // Helper: Get remaining daily minutes
+  int getRemainingDailyMinutes(int usedMinutes) {
+    if (dailyLimit <= 0) return -1; // No limit
+    final remaining = dailyLimit - usedMinutes;
+    return remaining > 0 ? remaining : 0;
+  }
+
+  // Helper: Get remaining weekly minutes
+  int getRemainingWeeklyMinutes(int usedMinutes) {
+    if (weeklyLimit <= 0) return -1; // No limit
+    final remaining = weeklyLimit - usedMinutes;
+    return remaining > 0 ? remaining : 0;
+  }
+
+  // Helper: Format daily limit
+  String get formattedDailyLimit {
+    if (dailyLimit <= 0) return 'No limit';
+    final hours = dailyLimit ~/ 60;
+    final minutes = dailyLimit % 60;
+    if (hours > 0 && minutes > 0) {
+      return '${hours}h ${minutes}m';
+    } else if (hours > 0) {
+      return '${hours}h';
+    } else {
+      return '${minutes}m';
+    }
+  }
+
+  // Helper: Format weekly limit
+  String get formattedWeeklyLimit {
+    if (weeklyLimit <= 0) return 'No limit';
+    final hours = weeklyLimit ~/ 60;
+    final minutes = weeklyLimit % 60;
+    if (hours > 0 && minutes > 0) {
+      return '${hours}h ${minutes}m';
+    } else if (hours > 0) {
+      return '${hours}h';
+    } else {
+      return '${minutes}m';
+    }
+  }
+
   @override
   String toString() {
     return 'AppLimitModel(packageName: $packageName, appName: $appName, dailyLimit: $dailyLimit, weeklyLimit: $weeklyLimit, isActive: $isActive, actionOnExceed: $actionOnExceed)';

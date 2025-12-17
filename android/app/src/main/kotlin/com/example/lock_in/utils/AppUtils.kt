@@ -1,6 +1,6 @@
 package com.example.lock_in.utils
 
-import android.content.Context
+import android.content. Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.util.Log
@@ -19,7 +19,7 @@ object AppUtils {
         return withContext(Dispatchers.IO) {
             try {
                 val packageManager = context.packageManager
-                val packages = packageManager.getInstalledPackages(PackageManager.GET_META_DATA)
+                val packages = packageManager. getInstalledPackages(PackageManager.GET_META_DATA)
 
                 val apps = mutableListOf<Map<String, Any>>()
 
@@ -37,7 +37,7 @@ object AppUtils {
                         val versionName = packageInfo.versionName ?: "Unknown"
                         val installTime = packageInfo.firstInstallTime
                         val updateTime = packageInfo.lastUpdateTime
-                        val isSystemApp = isSystemApp(applicationInfo)
+                        val systemApp = isSystemApp(applicationInfo)
 
                         // Get app category
                         val category = getAppCategory(applicationInfo)
@@ -49,21 +49,21 @@ object AppUtils {
                                 "versionName" to versionName,
                                 "installTime" to installTime,
                                 "updateTime" to updateTime,
-                                "isSystemApp" to isSystemApp,
+                                "isSystemApp" to systemApp,
                                 "category" to category,
                                 "canLaunch" to canLaunchApp(packageManager, packageName),
-                            ) as Map<String, Any>
+                            )
                         )
 
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Error processing package: ${packageInfo.packageName}", e)
+                    } catch (e:  Exception) {
+                        Log. w(TAG, "Error processing package: ${packageInfo.packageName}", e)
                     }
                 }
 
                 // Sort apps by name
                 apps.sortedBy { it["appName"] as String }
 
-            } catch (e: Exception) {
+            } catch (e:  Exception) {
                 Log.e(TAG, "Error getting installed apps", e)
                 emptyList()
             }
@@ -85,28 +85,28 @@ object AppUtils {
         val interestingSystemApps = setOf(
             "com.android.chrome",
             "com.google.android.youtube",
-            "com.android.vending", // Play Store
-            "com.google.android.gms",
-            "com.google.android.apps.maps",
+            "com. android.vending", // Play Store
+            "com.google.android. gms",
+            "com. google.android.apps.maps",
             "com.google.android.calendar",
-            "com.google.android.contacts",
+            "com.google. android.contacts",
             "com.android.gallery3d",
             "com.android.camera",
             "com.android.calculator2"
         )
 
-        return interestingSystemApps.any { packageName.contains(it) }
+        return packageName in interestingSystemApps
     }
 
     /**
      * Get app category
      */
-    private fun getAppCategory(applicationInfo: ApplicationInfo): String {
-        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+    private fun getAppCategory(applicationInfo:  ApplicationInfo): String {
+        return if (android.os.Build. VERSION.SDK_INT >= android. os.Build.VERSION_CODES.O) {
             when (applicationInfo.category) {
                 ApplicationInfo.CATEGORY_GAME -> "Games"
                 ApplicationInfo.CATEGORY_SOCIAL -> "Social"
-                ApplicationInfo.CATEGORY_NEWS -> "News"
+                ApplicationInfo. CATEGORY_NEWS -> "News"
                 ApplicationInfo.CATEGORY_MAPS -> "Maps"
                 ApplicationInfo.CATEGORY_PRODUCTIVITY -> "Productivity"
                 ApplicationInfo.CATEGORY_IMAGE -> "Photography"
@@ -129,7 +129,7 @@ object AppUtils {
                     packageName.contains("facebook") ||
                     packageName.contains("instagram") ||
                     packageName.contains("twitter") ||
-                    packageName.contains("whatsapp") -> "Social"
+                    packageName. contains("whatsapp") -> "Social"
             packageName.contains("news") ||
                     packageName.contains("reddit") -> "News"
             packageName.contains("music") ||
@@ -143,12 +143,12 @@ object AppUtils {
                     packageName.contains("gallery") -> "Photography"
             packageName.contains("productivity") ||
                     packageName.contains("office") ||
-                    packageName.contains("document") -> "Productivity"
+                    packageName. contains("document") -> "Productivity"
             packageName.contains("shopping") ||
                     packageName.contains("amazon") -> "Shopping"
             packageName.contains("travel") ||
                     packageName.contains("maps") -> "Travel & Local"
-            packageName.contains("fitness") ||
+            packageName. contains("fitness") ||
                     packageName.contains("health") -> "Health & Fitness"
             packageName.contains("education") ||
                     packageName.contains("learning") -> "Education"
@@ -159,11 +159,11 @@ object AppUtils {
     /**
      * Check if an app can be launched
      */
-    private fun canLaunchApp(packageManager: PackageManager, packageName: String): Boolean {
+    private fun canLaunchApp(packageManager:  PackageManager, packageName: String): Boolean {
         return try {
-            val intent = packageManager.getLaunchIntentForPackage(packageName)
+            val intent = packageManager. getLaunchIntentForPackage(packageName)
             intent != null
-        } catch (e: Exception) {
+        } catch (e:  Exception) {
             false
         }
     }
@@ -171,7 +171,7 @@ object AppUtils {
     /**
      * Check if an app has a launcher activity
      */
-    private fun hasLauncherActivity(packageManager: PackageManager, packageName: String): Boolean {
+    fun hasLauncherActivity(packageManager: PackageManager, packageName: String): Boolean {
         return try {
             val intent = android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
                 addCategory(android.content.Intent.CATEGORY_LAUNCHER)
@@ -185,7 +185,7 @@ object AppUtils {
     }
 
     /**
-     * Get app icon as base64 string (for Flutter)
+     * Get app icon as byte array (for Flutter)
      */
     fun getAppIcon(context: Context, packageName: String): ByteArray? {
         return try {
@@ -200,9 +200,54 @@ object AppUtils {
             bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
             stream.toByteArray() // Return raw bytes directly
         } catch (e: Exception) {
+            Log.e(TAG, "Error getting app icon for $packageName", e)
             null
         }
     }
 
+    /**
+     * Get app name from package name
+     */
+    fun getAppName(context: Context, packageName: String): String {
+        return try {
+            val packageManager = context.packageManager
+            val appInfo = packageManager.getApplicationInfo(packageName, 0)
+            packageManager.getApplicationLabel(appInfo).toString()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting app name for $packageName", e)
+            packageName
+        }
+    }
 
+    /**
+     * Check if an app is installed
+     */
+    fun isAppInstalled(context: Context, packageName: String): Boolean {
+        return try {
+            context.packageManager.getPackageInfo(packageName, 0)
+            true
+        } catch (e: PackageManager.NameNotFoundException) {
+            false
+        }
+    }
+
+    /**
+     * Launch an app by package name
+     */
+    fun launchApp(context: Context, packageName: String): Boolean {
+        return try {
+            val intent = context.packageManager.getLaunchIntentForPackage(packageName)
+            if (intent != null) {
+                intent.addFlags(android.content. Intent.FLAG_ACTIVITY_NEW_TASK)
+                context. startActivity(intent)
+                true
+            } else {
+                Log.w(TAG, "No launch intent found for $packageName")
+                false
+            }
+        } catch (e:  Exception) {
+            Log.e(TAG, "Error launching app $packageName", e)
+            false
+        }
+    }
 }

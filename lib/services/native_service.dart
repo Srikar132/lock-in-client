@@ -196,6 +196,8 @@ class NativeService {
     } catch (e) {
       debugPrint("NativeService Icon Error: $e");
       return null;
+
+
     }
   }
 }

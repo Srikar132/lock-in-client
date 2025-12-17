@@ -3,15 +3,19 @@ package com.example.lock_in
 import android.util.Log
 import androidx.annotation.NonNull
 import com.example.lock_in.permissions.PermissionManager
+import com.example.lock_in.services.AppLimitManager
 import com.example.lock_in.utils.AppUtils
+import com.lockin.focus.FocusModeManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 
 class MainActivity: FlutterActivity() {
 
@@ -27,9 +31,16 @@ class MainActivity: FlutterActivity() {
 
     // CORE MANAGERS
     private lateinit var permissionManager: PermissionManager
+    private lateinit var focusModeManager : FocusModeManager
+    private lateinit var appLimitManager: AppLimitManager
 
     // Method channels
     private lateinit var methodChannel: MethodChannel
+    private lateinit var eventChannel: EventChannel
+
+    // Event sinks
+    private var eventSink: EventChannel.EventSink? = null
+    private val eventQueue = ConcurrentHashMap<String, Any>()
 
 
     // SCOPE
@@ -52,6 +63,9 @@ class MainActivity: FlutterActivity() {
     private fun initializeManagers() {
         try {
             permissionManager = PermissionManager(this)
+            focusModeManager = FocusModeManager(this)
+            appLimitManager = AppLimitManager(this)
+
 
             Log.d(TAG, "All managers initialized successfully")
         }catch (e : Exception) {
@@ -69,6 +83,31 @@ class MainActivity: FlutterActivity() {
 
     }
 
+
+    private fun setupEventChannels(flutterEngine: FlutterEngine) {
+        // Main event channel
+        eventChannel = EventChannel(flutterEngine. dartExecutor.binaryMessenger, EVENT_CHANNEL)
+        eventChannel.setStreamHandler(object : EventChannel. StreamHandler {
+            override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                eventSink = events
+                focusModeManager.setEventSink(events)
+
+                // Send queued events
+                eventQueue.forEach { (event, data) ->
+                    sendEventToFlutter(event, data)
+                }
+                eventQueue.clear()
+            }
+
+            override fun onCancel(arguments: Any?) {
+                eventSink = null
+                focusModeManager.setEventSink(null)
+            }
+        })
+
+        Log.d(TAG, "Event channels configured")
+    }
+
     private fun handleMainMethodCall(
         method: String,
         arguments:  Any?,
@@ -79,6 +118,41 @@ class MainActivity: FlutterActivity() {
                 Log.v(TAG, "Method call: $method")
 
                 when(method) {
+                    // ====================
+                    // FOCUS SESSION METHODS
+                    // ====================
+                    // ====================
+                    "startFocusSession" -> {
+                        val sessionData = arguments as? Map<String, Any>
+                        if (sessionData != null) {
+                            val success = focusModeManager.startSession(sessionData)
+                            result.success(success)
+                        } else {
+                            result.error("INVALID_ARGUMENT", "Session data is required", null)
+                        }
+                    }
+
+                    "pauseFocusSession" -> {
+                        val success = focusModeManager.pauseSession()
+                        result.success(success)
+                    }
+
+                    "resumeFocusSession" -> {
+                        val success = focusModeManager.resumeSession()
+                        result. success(success)
+                    }
+
+                    "endFocusSession" -> {
+                        val success = focusModeManager.endSession()
+                        result.success(success)
+                    }
+
+                    "getCurrentSessionStatus" -> {
+                        val status = focusModeManager.getCurrentSessionStatus()
+                        result.success(status)
+                    }
+
+
                     // =======================
                     // PERMISSIONS
                     // =======================
@@ -163,6 +237,9 @@ class MainActivity: FlutterActivity() {
                     }
 
 
+
+
+
                     else -> {
                         result.notImplemented()
                     }
@@ -176,6 +253,25 @@ class MainActivity: FlutterActivity() {
                     "stackTrace" to e.stackTrace.take(5).map { it.toString() }
                 ))
             }
+        }
+    }
+
+    private fun sendEventToFlutter(event: String, data: Any) {
+        try {
+            val eventData = mapOf(
+                "event" to event,
+                "data" to data,
+                "timestamp" to System.currentTimeMillis()
+            )
+
+            if (eventSink != null) {
+                eventSink?.success(eventData)
+            } else {
+                // Queue event for later delivery
+                eventQueue[event] = data
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error sending event to Flutter: $event", e)
         }
     }
 
