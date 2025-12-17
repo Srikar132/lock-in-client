@@ -360,9 +360,9 @@ class FocusModeManager private constructor(private val context: Context) {
         while (isActive && isSessionActive.get()) {
             val elapsed = System.currentTimeMillis() - startTime + session.elapsedTime
             
-            // Update elapsed time in session
-            currentSession.get()?.let { current ->
-                currentSession.set(current.copy(elapsedTime = elapsed))
+            // Update elapsed time in session (thread-safe atomic update)
+            currentSession.updateAndGet { current ->
+                current?.copy(elapsedTime = elapsed)
             }
             
             // Broadcast timer update
@@ -387,9 +387,9 @@ class FocusModeManager private constructor(private val context: Context) {
         while (isActive && isSessionActive.get()) {
             val elapsed = System.currentTimeMillis() - startTime + session.elapsedTime
             
-            // Update elapsed time in session
-            currentSession.get()?.let { current ->
-                currentSession.set(current.copy(elapsedTime = elapsed))
+            // Update elapsed time in session (thread-safe atomic update)
+            currentSession.updateAndGet { current ->
+                current?.copy(elapsedTime = elapsed)
             }
             
             // Broadcast timer update (no planned duration for stopwatch)
@@ -425,10 +425,10 @@ class FocusModeManager private constructor(private val context: Context) {
                 }
             }
             
-            // Update total elapsed time
+            // Update total elapsed time (thread-safe atomic update)
             val totalElapsed = currentSession.get()?.elapsedTime?.plus(elapsed) ?: elapsed
-            currentSession.get()?.let { current ->
-                currentSession.set(current.copy(elapsedTime = totalElapsed))
+            currentSession.updateAndGet { current ->
+                current?.copy(elapsedTime = totalElapsed)
             }
             
             // Broadcast pomodoro update
@@ -609,8 +609,12 @@ class FocusModeManager private constructor(private val context: Context) {
                     activateBlockingServices(session.sessionData)
                 }
             }
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "Error parsing session data - invalid enum values", e)
+            clearSessionFromPrefs() // Clear corrupted data
         } catch (e: Exception) {
             Log.e(TAG, "Error restoring session from preferences", e)
+            clearSessionFromPrefs() // Clear corrupted data
         }
     }
     
@@ -749,14 +753,26 @@ data class SessionState(
             val plannedDurationRegex = """"plannedDuration":\s*(\d+)""".toRegex()
             val userIdRegex = """"userId":\s*"([^"]+)"""".toRegex()
             
+            // Parse with safe enum conversion
+            val statusStr = statusRegex.find(json)?.groupValues?.get(1) ?: "ACTIVE"
+            val sessionTypeStr = sessionTypeRegex.find(json)?.groupValues?.get(1) ?: "TIMER"
+            
             return SessionState(
                 sessionId = sessionIdRegex.find(json)?.groupValues?.get(1) ?: "",
-                status = SessionStatus.valueOf(statusRegex.find(json)?.groupValues?.get(1) ?: "ACTIVE"),
+                status = try { 
+                    SessionStatus.valueOf(statusStr) 
+                } catch (e: IllegalArgumentException) { 
+                    SessionStatus.ACTIVE 
+                },
                 startTime = startTimeRegex.find(json)?.groupValues?.get(1)?.toLong() ?: 0L,
                 elapsedTime = elapsedTimeRegex.find(json)?.groupValues?.get(1)?.toLong() ?: 0L,
                 pausedTime = pausedTimeRegex.find(json)?.groupValues?.get(1)?.toLong() ?: 0L,
                 sessionData = SessionData(
-                    sessionType = SessionType.valueOf(sessionTypeRegex.find(json)?.groupValues?.get(1) ?: "TIMER"),
+                    sessionType = try { 
+                        SessionType.valueOf(sessionTypeStr) 
+                    } catch (e: IllegalArgumentException) { 
+                        SessionType.TIMER 
+                    },
                     plannedDuration = plannedDurationRegex.find(json)?.groupValues?.get(1)?.toLong() ?: 0L,
                     userId = userIdRegex.find(json)?.groupValues?.get(1) ?: ""
                 )
