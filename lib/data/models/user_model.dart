@@ -7,15 +7,27 @@ class UserModel {
   final String? photoURL;
   final DateTime createdAt;
   final DateTime lastLoginAt;
+
+
+  // User status
   final bool hasCompletedOnboarding;
   final bool hasGrantedPermissions;
   
   // Onboarding data
-  final String? procrastinationLevel; // "struggle" | "few_bad_days" | "consistent"
-  final List<String>? distractions; // ["reels", "notifications", "texting", "games"]
-  final String? preferredStudyTime; // "morning" | "afternoon" | "evening" | "night"
+  final String? procrastinationLevel; 
+  final List<String>? distractions; 
+  final String? preferredStudyTime; 
 
-  UserModel({
+
+    // === QUICK STATS (for dashboard) ===
+  final int totalFocusTime; // milliseconds
+  final int totalSessions;
+  final int currentStreak;
+  final int longestStreak;
+  final DateTime? lastActiveDate;
+
+
+UserModel({
     required this.uid,
     required this.email,
     this.displayName,
@@ -27,6 +39,11 @@ class UserModel {
     this.procrastinationLevel,
     this.distractions,
     this.preferredStudyTime,
+    this.totalFocusTime = 0,
+    this.totalSessions = 0,
+    this.currentStreak = 0,
+    this.longestStreak = 0,
+    this.lastActiveDate,
   });
 
   // Convert to Firestore document
@@ -43,12 +60,20 @@ class UserModel {
       'procrastinationLevel': procrastinationLevel,
       'distractions': distractions,
       'preferredStudyTime': preferredStudyTime,
+      'totalFocusTime': totalFocusTime,
+      'totalSessions': totalSessions,
+      'currentStreak': currentStreak,
+      'longestStreak': longestStreak,
+      'lastActiveDate': lastActiveDate != null 
+          ? Timestamp.fromDate(lastActiveDate!) 
+          : null,
     };
   }
 
   // Create from Firestore document
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    
     return UserModel(
       uid: data['uid'] ?? '',
       email: data['email'] ?? '',
@@ -63,6 +88,13 @@ class UserModel {
           ? List<String>.from(data['distractions']) 
           : null,
       preferredStudyTime: data['preferredStudyTime'],
+      totalFocusTime: data['totalFocusTime'] ?? 0,
+      totalSessions: data['totalSessions'] ?? 0,
+      currentStreak: data['currentStreak'] ?? 0,
+      longestStreak: data['longestStreak'] ?? 0,
+      lastActiveDate: data['lastActiveDate'] != null
+          ? (data['lastActiveDate'] as Timestamp).toDate()
+          : null,
     );
   }
 
@@ -79,6 +111,11 @@ class UserModel {
     String? procrastinationLevel,
     List<String>? distractions,
     String? preferredStudyTime,
+    int? totalFocusTime,
+    int? totalSessions,
+    int? currentStreak,
+    int? longestStreak,
+    DateTime? lastActiveDate,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -92,12 +129,35 @@ class UserModel {
       procrastinationLevel: procrastinationLevel ?? this.procrastinationLevel,
       distractions: distractions ?? this.distractions,
       preferredStudyTime: preferredStudyTime ?? this.preferredStudyTime,
+      totalFocusTime: totalFocusTime ?? this.totalFocusTime,
+      totalSessions: totalSessions ?? this.totalSessions,
+      currentStreak: currentStreak ?? this.currentStreak,
+      longestStreak: longestStreak ?? this.longestStreak,
+      lastActiveDate: lastActiveDate ?? this.lastActiveDate,
     );
+  }
+
+  // Helper methods
+  String get firstName => displayName?.split(' ').first ?? 'User';
+  
+  bool get isOnboardingComplete => hasCompletedOnboarding;
+  bool get isPermissionsGranted => hasGrantedPermissions;
+  bool get isSetupComplete => hasCompletedOnboarding && hasGrantedPermissions;
+
+  // Format total focus time
+  String get formattedTotalFocusTime {
+    final hours = totalFocusTime ~/ (1000 * 60 * 60);
+    final minutes = (totalFocusTime % (1000 * 60 * 60)) ~/ (1000 * 60);
+    
+    if (hours > 0) {
+      return '${hours}h ${minutes}m';
+    }
+    return '${minutes}m';
   }
 
   @override
   String toString() {
-    return 'UserModel(uid: $uid, email: $email, displayName: $displayName)';
+    return 'UserModel(uid: $uid, email: $email, displayName: $displayName, sessions: $totalSessions)';
   }
 
   @override

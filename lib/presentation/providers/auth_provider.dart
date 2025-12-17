@@ -54,7 +54,6 @@ final currentUserProvider = StreamProvider<UserModel?>((ref) {
         return Stream.value(null);
       }
       
-      // Firebase automatically caches this data offline
       return ref.watch(userRepositoryProvider).streamUserData(firebaseUser.uid);
     },
     loading: () => Stream.value(null),

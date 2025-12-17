@@ -51,50 +51,20 @@ class UserRepository {
     String? preferredStudyTime,
   }) async {
     try {
-      final defaultSettings = {
-        'hasCompletedOnboarding': true,
-        'focusSettings': {
-          'defaultDuration': 25, // in minutes (default: 25)
-          'timerMode': 'timer', // "timer" | "stopwatch" | "pomodoro"
-          'pomodoroSettings': {
-            'workDuration': 25, // 25 min
-            'shortBreak': 5, // 5 min
-            'longBreak': 15, // 15 min
-            'sessionsBeforeLongBreak': 4,
-          },
-          'autoStartBreaks': true,
-          'soundEnabled': true,
-          'vibrationEnabled': true,
-        },
-        'stats': {
-          "totalFocusTime": 0, // milliseconds
-          "totalSessions": 0,
-          "currentStreak": 0,
-          "longestStreak": 0,
-          "lastActiveDate": FieldValue.serverTimestamp(),
-          "todayScreenTime": 0,
-          "todayFocusTime": 0,
-        },
-      };
+      Map<String, dynamic>  updates = {};
 
       if (procrastinationLevel != null) {
-        defaultSettings['procrastinationLevel'] = procrastinationLevel;
+        updates['procrastinationLevel'] = procrastinationLevel;
       }
       if (distractions != null) {
-        defaultSettings['distractions'] = distractions;
+        updates['distractions'] = distractions;
       }
 
-      if (procrastinationLevel != null) {
-        defaultSettings['procrastinationLevel'] = procrastinationLevel;
-      }
-      if (distractions != null) {
-        defaultSettings['distractions'] = distractions;
-      }
       if (preferredStudyTime != null) {
-        defaultSettings['preferredStudyTime'] = preferredStudyTime;
+        updates['preferredStudyTime'] = preferredStudyTime;
       }
 
-      await _firestore.collection('users').doc(uid).update(defaultSettings);
+      await _firestore.collection('users').doc(uid).update(updates);
     } catch (e) {
       debugPrint('Error updating onboarding answers: $e');
       rethrow;
