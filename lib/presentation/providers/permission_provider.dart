@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lock_in/services/permissions_service.dart';
+import 'package:lock_in/services/native_service.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
 import 'package:lock_in/data/repositories/user_repository.dart';
 
@@ -88,16 +88,16 @@ class PermissionNotifier extends Notifier<PermissionState> {
     state = state.copyWith(isChecking: true);
 
     try {
-      final usageGranted = await PermissionService.hasUsageStatsPermission();
-      final overlayGranted = await PermissionService.hasOverlayPermission();
+      final usageGranted = await NativeService.hasUsageStatsPermission();
+      final overlayGranted = await NativeService.hasOverlayPermission();
       final notificationGranted =
-          await PermissionService.hasNotificationPermission();
+          await NativeService.hasNotificationPermission();
       final accessibilityGranted =
-          await PermissionService.hasAccessibilityPermission();
+          await NativeService.hasAccessibilityPermission();
       final backgroundGranted =
-          await PermissionService.hasBackgroundPermission();
+          await NativeService.hasBackgroundPermission();
       final displayPopupGranted =
-          await PermissionService.hasDisplayPopupPermission();
+          await NativeService.hasDisplayPopupPermission();
 
       state = state.copyWith(
         usagePermission: usageGranted,
@@ -116,37 +116,37 @@ class PermissionNotifier extends Notifier<PermissionState> {
 
   // Request usage permission
   Future<void> requestUsagePermission() async {
-    await PermissionService.requestUsageStatsPermission();
+    await NativeService.requestUsageStatsPermission();
     // Don't check immediately - wait for user to return from settings
   }
 
   // Request overlay permission
   Future<void> requestOverlayPermission() async {
-    await PermissionService.requestOverlayPermission();
+    await NativeService.requestOverlayPermission();
   }
 
   // Request Background permission
   Future<void> requestBackgroundPermission() async {
-    await PermissionService.requestBackgroundPermission();
+    await NativeService.requestBackgroundPermission();
   }
 
   // Request notification permission
   Future<void> requestNotificationPermission() async {
-    await PermissionService.requestNotificationPermission();
+    await NativeService.requestNotificationPermission();
     // Check immediately for notification since it shows dialog
     await Future.delayed(const Duration(milliseconds: 500));
-    final granted = await PermissionService.hasNotificationPermission();
+    final granted = await NativeService.hasNotificationPermission();
     state = state.copyWith(notificationPermission: granted);
   }
 
   // Request display popup permission (same as overlay)
   Future<void> requestDisplayPopupPermission() async {
-    await PermissionService.requestDisplayPopupPermission();
+    await NativeService.requestDisplayPopupPermission();
   }
 
   // Request accessibility permission
   Future<void> requestAccessibilityPermission() async {
-    await PermissionService.requestAccessibilityPermission();
+    await NativeService.requestAccessibilityPermission();
   }
 
   // Complete permissions setup and navigate to SplashScreen

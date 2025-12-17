@@ -23,6 +23,7 @@ dependencies:
   riverpod: ^3.0.3
   shimmer: ^3.0.0
   smooth_page_indicator: ^2.0.1
+  audioplayers: ^6.0.0
 
 dev_dependencies:
   flutter_test:
@@ -37,4 +38,5 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/splash/
+    - assets/sounds/
   

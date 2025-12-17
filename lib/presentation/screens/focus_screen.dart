@@ -1,44 +1,401 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lock_in/core/constants/images.dart';
+import 'package:lock_in/models/focus_time_bottom_model.dart';
+import 'package:lock_in/models/model_manager.dart';
+import 'package:lock_in/presentation/providers/auth_provider.dart';
+import 'package:lock_in/presentation/providers/settings_provider.dart';
+import 'package:lock_in/data/models/user_settings_model.dart';
+import 'package:lock_in/widgets/focus_timer_widget.dart';
+import 'package:lock_in/widgets/lumo_mascot_widget.dart';
+import 'dart:math';
 
-class FocusScreen extends StatelessWidget {
+class FocusScreen extends ConsumerStatefulWidget {
   const FocusScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        // 1. Background Image Layer
-          Positioned.fill(
-            child: Image.asset(kHomeBackgroundImage, fit: BoxFit.cover),
-          ),
+  ConsumerState<FocusScreen> createState() => _FocusScreenState();
+}
 
-        // 2. Transparent InkWell & Column Layer
-        Positioned.fill(
-          child: Material(
-            // Material widget is needed for the InkWell ripple to show
-            color: Colors.transparent,
-            child: InkWell(
-              // The onTap callback is required for the InkWell to be clickable
-              onTap: () {
-                // print("InkWell tapped!");
-                // Add your tap handling logic here
-              },
-              onLongPress:() {},
-              // Optional: Customize the splash color
-              splashColor: Colors.white.withAlpha(30),
-              highlightColor: Colors.white.withAlpha(10),
-              child: const Column(
-                // Align content in the center of the column
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                 
-                ],
+class _FocusScreenState extends ConsumerState<FocusScreen> {
+  // List of motivational quotes
+  final List<String> _quotes = [
+    "Stay committed to your decisions, but stay flexible in your approach.",
+    "Concentrate all your thoughts upon the work in hand.",
+    "The successful warrior is the average man, with laser-like focus.",
+    "Lack of direction, not lack of time, is the problem.",
+    "Focus on being productive instead of busy.",
+    "The ability to focus is the key skill of the 21st century.",
+    "Success demands singleness of purpose.",
+  ];
+
+  int _currentQuoteIndex = -1;
+  final Random _random = Random();
+
+  // Function to change quotes when Lumo is tapped
+  void _changeQuote() {
+    setState(() {
+      int newIndex;
+      do {
+        newIndex = _random.nextInt(_quotes.length);
+      } while (newIndex == _currentQuoteIndex && _quotes.length > 1);
+      _currentQuoteIndex = newIndex;
+    });
+  }
+
+  void _showFocusModeModal(UserSettingsModel? settings) {
+    final user = ref.read(currentUserProvider).value;
+    if (user == null || settings == null) return;
+
+    // Example usage:
+    BottomSheetManager.show(
+      context: context,
+      child: FocusTimeBottomSheet(
+        initialDuration: settings.defaultDuration,
+        initialBreaks: settings.numberOfBreaks,
+        initialBlockHomeScreen: settings.blockPhoneHomeScreen,
+        initialStrictMode: settings.strictMode,
+        initialTimerMode: settings.timerMode,
+        onSave: (duration, breaks, blockHome, strictMode, timerMode) async {
+          // Update settings in database
+          final updatedSettings = settings.copyWith(
+            defaultDuration: duration,
+            numberOfBreaks: breaks,
+            blockPhoneHomeScreen: blockHome,
+            strictMode: strictMode,
+            timerMode: timerMode,
+          );
+
+          try {
+            await ref
+                .read(settingsRepositoryProvider)
+                .updateSettings(user.uid, updatedSettings);
+
+            // Force refresh the settings stream
+            ref.invalidate(userSettingsProvider(user.uid));
+          } catch (e) {
+            debugPrint('Error updating settings: $e');
+          }
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final userAsync = ref.watch(currentUserProvider);
+
+    return userAsync.when(
+      data: (user) {
+        if (user == null) {
+          return const Center(child: Text('Please login first'));
+        }
+
+        // Watch user settings
+        final settingsAsync = ref.watch(userSettingsProvider(user.uid));
+
+        return Stack(
+          children: [
+            // 1. Background Image Layer
+            Positioned.fill(
+              child: Image.asset(kHomeBackgroundImage, fit: BoxFit.cover),
+            ),
+
+            // 2. Transparent InkWell & Column Layer
+            Positioned.fill(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {},
+                  onLongPress: () {},
+                  splashColor: Colors.white.withAlpha(30),
+                  highlightColor: Colors.white.withAlpha(10),
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // Custom Header
+                          _buildHeader(context, user),
+
+                          const SizedBox(height: 100),
+
+                          // Focus Timer Widget - now with settings data
+                          settingsAsync.when(
+                            data: (settings) {
+                              return FocusTimerWidget(
+                                initialDefaultDuration:
+                                    settings?.defaultDuration ?? 25,
+                                initialTimerMode:
+                                    settings?.timerMode ?? "timer",
+                                onTap: () {
+                                  _showFocusModeModal(settings);
+                                },
+                              );
+                            },
+                            loading: () => FocusTimerWidget(
+                              initialDefaultDuration: 25,
+                              initialTimerMode: "timer",
+                              onTap: () {
+                                _showFocusModeModal(null);
+                              },
+                            ),
+                            error: (_, __) => FocusTimerWidget(
+                              initialDefaultDuration: 25,
+                              initialTimerMode: "timer",
+                              onTap: () {
+                                _showFocusModeModal(null);
+                              },
+                            ),
+                          ),
+
+                          const Spacer(),
+
+                          // Quotation Card
+                          if (_currentQuoteIndex > -1) _buildQuoteCard(),
+
+                          const SizedBox(height: 10),
+
+                          // Lumo Mascot - Tap to change quote
+                          LumoMascotWidget(onTap: _changeQuote),
+
+                          const SizedBox(height: 50),
+
+                          // Start Focus Mode Button
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                // Handle start focus mode
+                               final settings = settingsAsync.value;
+                               _showFocusModeModal(settings);
+
+
+                              },
+                              style: ElevatedButton.styleFrom(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(100),
+                                ),
+                              ),
+                              child: const Text('Start focus mode'),
+                            ),
+                          ),
+
+                          const SizedBox(height: 5),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
+            ),
+          ],
+        );
+      },
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (_, __) =>
+          const Scaffold(body: Center(child: Text('Error loading user data'))),
+    );
+  }
+
+  // Quotation Card Widget
+  Widget _buildQuoteCard() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      transitionBuilder: (Widget child, Animation<double> animation) {
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.1),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          ),
+        );
+      },
+      child: Container(
+        key: ValueKey<int>(_currentQuoteIndex),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).primaryColor.withAlpha(60),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.format_quote,
+              color: Colors.white.withOpacity(0.6),
+              size: 24,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _quotes[_currentQuoteIndex],
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 14,
+                  fontStyle: FontStyle.italic,
+                  height: 1.4,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Icon(
+              Icons.format_quote,
+              color: Colors.white.withOpacity(0.6),
+              size: 24,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, user) {
+    return Row(
+      children: [
+        // User Profile Avatar
+        GestureDetector(
+          onTap: () {
+            // Navigate to profile or open drawer
+          },
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withOpacity(0.3),
+                width: 1.5,
+              ),
+            ),
+            child: CircleAvatar(
+              radius: 16,
+              backgroundColor: Colors.white.withOpacity(0.2),
+              backgroundImage: user.photoURL != null
+                  ? NetworkImage(user.photoURL!)
+                  : null,
+              child: user.photoURL == null
+                  ? Text(
+                      user.firstName[0].toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
+                  : null,
+            ),
+          ),
+        ),
+
+        const Spacer(),
+
+        // Usage Time Card
+        _buildStatCard(
+          label: 'Usage',
+          value: _formatDuration(user.totalFocusTime),
+          backgroundColor: Colors.white.withOpacity(0.15),
+        ),
+
+        const SizedBox(width: 6),
+
+        // Focus Time Card
+        _buildStatCard(
+          label: 'Focus',
+          value: '0m',
+          backgroundColor: Colors.white.withOpacity(0.15),
+        ),
+
+        const Spacer(),
+
+        // Streak/Action Icon
+        GestureDetector(
+          onTap: () {
+            // Open settings, notifications, or streak details
+          },
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Theme.of(context).focusColor,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.local_fire_department,
+                  color: Colors.white,
+                  size: 16,
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  '${user.currentStreak}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
       ],
     );
+  }
+
+  Widget _buildStatCard({
+    required String label,
+    required String value,
+    required Color backgroundColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 35, vertical: 5),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.7),
+              fontSize: 9,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 1),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDuration(int milliseconds) {
+    final hours = milliseconds ~/ (1000 * 60 * 60);
+    final minutes = (milliseconds % (1000 * 60 * 60)) ~/ (1000 * 60);
+
+    if (hours > 0) {
+      return '${hours}h ${minutes}m';
+    }
+    return '${minutes}m';
   }
 }

@@ -9,7 +9,7 @@
 .snapshots(includeMetadataChanges: true)
 
 // Check if data is from cache
-snapshot.metadata.isFromCache // true = offline data
+snapshot.metadata.isFromCache // true = offline data  
 
 // Handle offline state in UI
 if (snapshot.metadata.isFromCache) {

@@ -37,7 +37,7 @@ void main() async {
   // Note: Removed Hive initialization - Firebase handles all caching now
   // await HiveService.init(); // Commented out since we're using Firebase-only approach
 
-  runApp(ProviderScope(child: const LockInApp()));
+  runApp(const ProviderScope(child: LockInApp()));
 }
 
 class LockInApp extends StatelessWidget {

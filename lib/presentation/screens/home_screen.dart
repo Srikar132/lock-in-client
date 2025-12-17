@@ -32,6 +32,9 @@ class _HomeScreenState extends State<HomeScreen> {
       // USING MATERIAL 3 NAVIGATION BAR
       // This matches the 'navigationBarTheme' in your AppTheme file
       bottomNavigationBar: NavigationBar(
+        backgroundColor: Colors.transparent,
+        indicatorColor: Colors.transparent, // 🔥 removes shine
+        surfaceTintColor: Colors.transparent, // 🔥 removes overlay tint
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {
           setState(() {

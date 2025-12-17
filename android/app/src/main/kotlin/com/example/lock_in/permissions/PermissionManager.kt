@@ -16,6 +16,8 @@ import java.lang.reflect.Method
 
 class PermissionManager(private val activity: Activity) {
 
+
+
     companion object {
         private const val TAG = "PermissionManager"
         private const val USAGE_STATS_REQUEST_CODE = 1001

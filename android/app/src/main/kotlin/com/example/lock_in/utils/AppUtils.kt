@@ -1,0 +1,208 @@
+package com.example.lock_in.utils
+
+import android.content.Context
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
+import android.util.Log
+import androidx.core.graphics.drawable.toBitmap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+object AppUtils {
+
+    private const val TAG = "AppUtils"
+
+    /**
+     * GET ALL INSTALLED APPS
+     */
+    suspend fun getInstalledApps(context: Context): List<Map<String, Any>> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val packageManager = context.packageManager
+                val packages = packageManager.getInstalledPackages(PackageManager.GET_META_DATA)
+
+                val apps = mutableListOf<Map<String, Any>>()
+
+                packages.forEach { packageInfo ->
+                    try {
+                        val applicationInfo: ApplicationInfo = packageInfo.applicationInfo ?: return@forEach
+
+                        // Skip system apps unless they're user-interesting
+                        if (isSystemApp(applicationInfo) && !isUserInterestingSystemApp(packageInfo.packageName)) {
+                            return@forEach
+                        }
+
+                        val appName = packageManager.getApplicationLabel(applicationInfo).toString()
+                        val packageName = packageInfo.packageName
+                        val versionName = packageInfo.versionName ?: "Unknown"
+                        val installTime = packageInfo.firstInstallTime
+                        val updateTime = packageInfo.lastUpdateTime
+                        val isSystemApp = isSystemApp(applicationInfo)
+
+                        // Get app category
+                        val category = getAppCategory(applicationInfo)
+
+                        apps.add(
+                            mapOf(
+                                "appName" to appName,
+                                "packageName" to packageName,
+                                "versionName" to versionName,
+                                "installTime" to installTime,
+                                "updateTime" to updateTime,
+                                "isSystemApp" to isSystemApp,
+                                "category" to category,
+                                "canLaunch" to canLaunchApp(packageManager, packageName),
+                            ) as Map<String, Any>
+                        )
+
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Error processing package: ${packageInfo.packageName}", e)
+                    }
+                }
+
+                // Sort apps by name
+                apps.sortedBy { it["appName"] as String }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Error getting installed apps", e)
+                emptyList()
+            }
+        }
+    }
+
+    /**
+     * Check if an app is a system app
+     */
+    private fun isSystemApp(applicationInfo: ApplicationInfo): Boolean {
+        return (applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0 ||
+                (applicationInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+    }
+
+    /**
+     * Check if a system app is interesting to users (like Chrome, Play Store, etc.)
+     */
+    private fun isUserInterestingSystemApp(packageName: String): Boolean {
+        val interestingSystemApps = setOf(
+            "com.android.chrome",
+            "com.google.android.youtube",
+            "com.android.vending", // Play Store
+            "com.google.android.gms",
+            "com.google.android.apps.maps",
+            "com.google.android.calendar",
+            "com.google.android.contacts",
+            "com.android.gallery3d",
+            "com.android.camera",
+            "com.android.calculator2"
+        )
+
+        return interestingSystemApps.any { packageName.contains(it) }
+    }
+
+    /**
+     * Get app category
+     */
+    private fun getAppCategory(applicationInfo: ApplicationInfo): String {
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            when (applicationInfo.category) {
+                ApplicationInfo.CATEGORY_GAME -> "Games"
+                ApplicationInfo.CATEGORY_SOCIAL -> "Social"
+                ApplicationInfo.CATEGORY_NEWS -> "News"
+                ApplicationInfo.CATEGORY_MAPS -> "Maps"
+                ApplicationInfo.CATEGORY_PRODUCTIVITY -> "Productivity"
+                ApplicationInfo.CATEGORY_IMAGE -> "Photography"
+                ApplicationInfo.CATEGORY_VIDEO -> "Video"
+                ApplicationInfo.CATEGORY_AUDIO -> "Music & Audio"
+                else -> getCategoryFromPackageName(applicationInfo.packageName)
+            }
+        } else {
+            getCategoryFromPackageName(applicationInfo.packageName)
+        }
+    }
+
+    /**
+     * Guess category from package name
+     */
+    private fun getCategoryFromPackageName(packageName: String): String {
+        return when {
+            packageName.contains("game") -> "Games"
+            packageName.contains("social") ||
+                    packageName.contains("facebook") ||
+                    packageName.contains("instagram") ||
+                    packageName.contains("twitter") ||
+                    packageName.contains("whatsapp") -> "Social"
+            packageName.contains("news") ||
+                    packageName.contains("reddit") -> "News"
+            packageName.contains("music") ||
+                    packageName.contains("spotify") ||
+                    packageName.contains("audio") -> "Music & Audio"
+            packageName.contains("video") ||
+                    packageName.contains("youtube") ||
+                    packageName.contains("netflix") -> "Video"
+            packageName.contains("photo") ||
+                    packageName.contains("camera") ||
+                    packageName.contains("gallery") -> "Photography"
+            packageName.contains("productivity") ||
+                    packageName.contains("office") ||
+                    packageName.contains("document") -> "Productivity"
+            packageName.contains("shopping") ||
+                    packageName.contains("amazon") -> "Shopping"
+            packageName.contains("travel") ||
+                    packageName.contains("maps") -> "Travel & Local"
+            packageName.contains("fitness") ||
+                    packageName.contains("health") -> "Health & Fitness"
+            packageName.contains("education") ||
+                    packageName.contains("learning") -> "Education"
+            else -> "Other"
+        }
+    }
+
+    /**
+     * Check if an app can be launched
+     */
+    private fun canLaunchApp(packageManager: PackageManager, packageName: String): Boolean {
+        return try {
+            val intent = packageManager.getLaunchIntentForPackage(packageName)
+            intent != null
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Check if an app has a launcher activity
+     */
+    private fun hasLauncherActivity(packageManager: PackageManager, packageName: String): Boolean {
+        return try {
+            val intent = android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
+                addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+                setPackage(packageName)
+            }
+            val activities = packageManager.queryIntentActivities(intent, 0)
+            activities.isNotEmpty()
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Get app icon as base64 string (for Flutter)
+     */
+    fun getAppIcon(context: Context, packageName: String): ByteArray? {
+        return try {
+            val packageManager = context.packageManager
+            val appIcon = packageManager.getApplicationIcon(packageName)
+
+            // Convert Drawable to Bitmap
+            val bitmap = appIcon.toBitmap()
+
+            // Compress to PNG Byte Array
+            val stream = java.io.ByteArrayOutputStream()
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
+            stream.toByteArray() // Return raw bytes directly
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+
+}
