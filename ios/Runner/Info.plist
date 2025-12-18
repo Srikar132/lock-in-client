@@ -45,5 +45,21 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	
+	<!-- Voice Assistant Permissions -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>We need access to your microphone to enable voice conversations with Lumo assistant.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>We use speech recognition to understand your voice commands with Lumo.</string>
+	
+	<!-- Background Audio -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
+	
+	<!-- WiFi Persistence -->
+	<key>UIRequiresPersistentWiFi</key>
+	<true/>
 </dict>
 </plist>

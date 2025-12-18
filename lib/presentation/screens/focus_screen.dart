@@ -9,6 +9,7 @@ import 'package:lock_in/presentation/providers/settings_provider.dart';
 import 'package:lock_in/data/models/user_settings_model.dart';
 import 'package:lock_in/widgets/focus_timer_widget.dart';
 import 'package:lock_in/widgets/lumo_mascot_widget.dart';
+import 'package:lock_in/presentation/screens/profile_screen.dart';
 import 'dart:math';
 
 class FocusScreen extends ConsumerStatefulWidget {
@@ -262,7 +263,12 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
         // User Profile Avatar
         GestureDetector(
           onTap: () {
-            // Navigate to profile or open drawer
+            // Navigate to profile screen
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const ProfileScreen(),
+              ),
+            );
           },
           child: Container(
             width: 32,
@@ -282,7 +288,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                   : null,
               child: user.photoURL == null
                   ? Text(
-                      user.firstName[0].toUpperCase(),
+                      (user.displayName ?? user.email)[0].toUpperCase(),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
