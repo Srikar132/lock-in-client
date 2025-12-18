@@ -1,4 +1,4 @@
-package com.example.lock_in. services
+package com.example.lock_in.services
 
 import android.Manifest
 import android.app.NotificationChannel
@@ -19,12 +19,12 @@ import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
+import com.example.lock_in.MainActivity
 import com.example.lock_in.models.AppLimitStatus
 import com.example.lock_in.models.LimitStatusType
 import com.lockin.focus.FocusModeManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -75,7 +75,7 @@ class AppMonitoringService : Service() {
         Log.d(TAG, "AppMonitoringService created")
 
         // Initialize components
-        focusManager = FocusModeManager. getInstance(this)
+        focusManager = FocusModeManager.getInstance(this)
         appLimitManager = AppLimitManager(this)
         usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
 
@@ -85,7 +85,7 @@ class AppMonitoringService : Service() {
 
     @RequiresPermission(Manifest.permission.VIBRATE)
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log. d(TAG, "onStartCommand:  ${intent?.action}")
+        Log.d(TAG, "onStartCommand: ${intent?.action}")
 
         when (intent?.action) {
             ACTION_START_MONITORING -> {
@@ -118,17 +118,21 @@ class AppMonitoringService : Service() {
         super.onDestroy()
     }
 
-    @RequiresApi(Build.VERSION_CODES. O)
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
         Log.d(TAG, "Task removed - restarting service if session active")
 
-        // If session is active, restart the service
-        if (focusManager.isSessionActive()) {
-            val restartIntent = Intent(this, AppMonitoringService::class.java).apply {
-                action = ACTION_START_MONITORING
+        // If session is active or any persistent blocking is enabled, restart the service
+        try {
+            if (focusManager.isSessionActive() || focusManager.isBlockingActive()) {
+                val restartIntent = Intent(this, AppMonitoringService::class.java).apply {
+                    action = ACTION_START_MONITORING
+                }
+                startForegroundService(restartIntent)
             }
-            startForegroundService(restartIntent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error while handling task removed restart logic", e)
         }
     }
 
@@ -150,8 +154,8 @@ class AppMonitoringService : Service() {
                 enableVibration(false)
             }
 
-            val notificationManager = getSystemService(NotificationManager::class. java)
-            notificationManager. createNotificationChannel(channel)
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            notificationManager.createNotificationChannel(channel)
         }
     }
 
@@ -160,16 +164,16 @@ class AppMonitoringService : Service() {
         val elapsedMinutes = ((System.currentTimeMillis() - sessionStartTime) / 60000).toInt()
 
         // Capitalize session type properly
-        val sessionTypeName = session?. sessionType?.replaceFirstChar {
+        val sessionTypeName = session?.sessionType?.replaceFirstChar {
             if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
         } ?: "Focus"
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Focus Mode Active")
             .setContentText("$sessionTypeName • ${elapsedMinutes}min • ${blockedApps.size} apps blocked")
-            .setSmallIcon(android.R.drawable.ic_lock_lock) // Using system icon
+            .setSmallIcon(android.R.drawable.ic_lock_lock)
             .setOngoing(true)
-            .setPriority(NotificationCompat. PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setSilent(true)
             .setShowWhen(false)
@@ -179,7 +183,7 @@ class AppMonitoringService : Service() {
                 createActionPendingIntent("PAUSE_SESSION")
             )
             .addAction(
-                android.R. drawable.ic_delete,
+                android.R.drawable.ic_delete,
                 "End",
                 createActionPendingIntent("END_SESSION")
             )
@@ -215,7 +219,7 @@ class AppMonitoringService : Service() {
             }
 
             // Parse session data if provided
-            if (! sessionDataJson.isNullOrEmpty()) {
+            if (!sessionDataJson.isNullOrEmpty()) {
                 parseSessionData(sessionDataJson)
             }
 
@@ -259,12 +263,13 @@ class AppMonitoringService : Service() {
         }
     }
 
-    @RequiresPermission(android.Manifest.permission.VIBRATE)
+    @RequiresPermission(Manifest.permission.VIBRATE)
     private fun startMonitoringLoop() {
-        monitoringRunnable = object :  Runnable {
+        monitoringRunnable = object : Runnable {
             override fun run() {
-                if (isMonitoring && focusManager.isSessionActive()) {
-                    scope.launch  {
+                // Continue monitoring while either a focus session is active or any persistent blocking is enabled
+                if (isMonitoring && (focusManager.isSessionActive() || focusManager.isBlockingActive())) {
+                    scope.launch {
                         try {
                             checkCurrentApp()
                             checkAppLimits()
@@ -327,7 +332,7 @@ class AppMonitoringService : Service() {
             )
 
             // Find the most recently used app
-            usageStats?. maxByOrNull { it.lastTimeUsed }?.packageName
+            usageStats?.maxByOrNull { it.lastTimeUsed }?.packageName
 
         } catch (e: Exception) {
             Log.e(TAG, "Error getting foreground app", e)
@@ -343,8 +348,8 @@ class AppMonitoringService : Service() {
             // Don't block our own app
             if (packageName == this.packageName) return false
 
-            // Check session blocked apps
-            if (blockedApps.contains(packageName)) return true
+            // If any blocking mode is active (session or any persistent type), check blocked apps
+            if ((focusManager.isSessionActive() || focusManager.isPersistentAppBlockingEnabled()) && blockedApps.contains(packageName)) return true
 
             // Check temporarily blocked apps (due to limits)
             if (temporaryBlocks.contains(packageName)) return true
@@ -352,7 +357,7 @@ class AppMonitoringService : Service() {
             false
 
         } catch (e: Exception) {
-            Log.e(TAG, "Error checking if app should be blocked:  $packageName", e)
+            Log.e(TAG, "Error checking if app should be blocked: $packageName", e)
             false
         }
     }
@@ -428,7 +433,7 @@ class AppMonitoringService : Service() {
                         }
                         else -> {
                             // Remove from temporary blocks if limit is no longer exceeded
-                            temporaryBlocks.remove(status. packageName)
+                            temporaryBlocks.remove(status.packageName)
                         }
                     }
                 }
@@ -439,7 +444,7 @@ class AppMonitoringService : Service() {
         }
     }
 
-    private suspend fun blockAppForLimit(status:  AppLimitStatus) {
+    private suspend fun blockAppForLimit(status: AppLimitStatus) {
         withContext(Dispatchers.Main) {
             try {
                 Log.d(TAG, "Blocking app for limit: ${status.appName}")
@@ -482,19 +487,69 @@ class AppMonitoringService : Service() {
             val sessionData = JSONObject(sessionDataJson)
             // Additional session parsing if needed
             Log.d(TAG, "Parsed session data successfully")
-        } catch (e:  Exception) {
+        } catch (e: Exception) {
             Log.e(TAG, "Error parsing session data", e)
         }
     }
 
     private fun loadBlockedApps() {
         try {
+            blockedApps.clear()
+
+            // 1) Load blocked apps from current session (if any)
             val session = focusManager.getCurrentSession()
             if (session != null) {
-                blockedApps.clear()
-                blockedApps.addAll(session.blockedApps)
-                Log.d(TAG, "Loaded ${blockedApps.size} blocked apps from session")
+                try {
+                    blockedApps.addAll(session.blockedApps)
+                    Log.d(TAG, "Loaded ${session.blockedApps.size} blocked apps from session")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error adding session blocked apps", e)
+                }
             }
+
+            // 2) Add persistent (always-on) blocked apps configured by the user
+            try {
+                if (focusManager.isPersistentAppBlockingEnabled()) {
+                    val persistentApps = focusManager.getPersistentBlockedApps()
+                    if (persistentApps.isNotEmpty()) {
+                        blockedApps.addAll(persistentApps)
+                        Log.d(TAG, "Loaded ${persistentApps.size} persistent blocked apps")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Error loading persistent blocked apps", e)
+            }
+
+            // 3) Load other persistent blocking types (for logging/monitoring)
+            try {
+                var persistentBlocksCount = 0
+                
+                if (focusManager.isPersistentWebsiteBlockingEnabled()) {
+                    val websites = focusManager.getPersistentBlockedWebsites()
+                    persistentBlocksCount += websites.size
+                    Log.d(TAG, "Persistent website blocking enabled: ${websites.size} sites")
+                }
+                
+                if (focusManager.isPersistentShortFormBlockingEnabled()) {
+                    val shortForm = focusManager.getPersistentShortFormBlocks()
+                    persistentBlocksCount += shortForm.size
+                    Log.d(TAG, "Persistent short-form blocking enabled: ${shortForm.size} blocks")
+                }
+                
+                if (focusManager.isPersistentNotificationBlockingEnabled()) {
+                    val notifications = focusManager.getPersistentNotificationBlocks()
+                    persistentBlocksCount += notifications.size
+                    Log.d(TAG, "Persistent notification blocking enabled: ${notifications.size} blocks")
+                }
+                
+                if (persistentBlocksCount > 0) {
+                    Log.d(TAG, "Total persistent blocking types active: $persistentBlocksCount")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Error loading other persistent blocks", e)
+            }
+
+            Log.d(TAG, "Total blocked apps loaded: ${blockedApps.size}")
         } catch (e: Exception) {
             Log.e(TAG, "Error loading blocked apps", e)
         }
@@ -504,8 +559,8 @@ class AppMonitoringService : Service() {
         try {
             blockedApps.clear()
             blockedApps.addAll(newBlockedApps)
-            Log.d(TAG, "Updated blocked apps: ${blockedApps. size} apps")
-        } catch (e:  Exception) {
+            Log.d(TAG, "Updated blocked apps: ${blockedApps.size} apps")
+        } catch (e: Exception) {
             Log.e(TAG, "Error updating blocked apps", e)
         }
     }
@@ -515,7 +570,7 @@ class AppMonitoringService : Service() {
             "com.android.systemui",
             "android",
             "com.android.phone",
-            "com.android. settings",
+            "com.android.settings",
             "com.google.android.dialer",
             "com.android.launcher",
             "com.android.launcher3"
@@ -523,7 +578,7 @@ class AppMonitoringService : Service() {
 
         return systemApps.contains(packageName) ||
                 packageName.startsWith("com.android.") ||
-                packageName.startsWith("com.google.android. gms")
+                packageName.startsWith("com.google.android.gms")
     }
 
     private fun getAppName(packageName: String): String {
@@ -541,7 +596,7 @@ class AppMonitoringService : Service() {
         return try {
             val elapsed = System.currentTimeMillis() - sessionStartTime
             (elapsed / 60000).toInt()
-        } catch (e:  Exception) {
+        } catch (e: Exception) {
             0
         }
     }
@@ -554,7 +609,7 @@ class AppMonitoringService : Service() {
     private fun sendToHomeScreen() {
         try {
             val homeIntent = Intent(Intent.ACTION_MAIN).apply {
-                addCategory(Intent. CATEGORY_HOME)
+                addCategory(Intent.CATEGORY_HOME)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             startActivity(homeIntent)
@@ -569,8 +624,8 @@ class AppMonitoringService : Service() {
             val notification = NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("App Blocked")
                 .setContentText("$appName was blocked during focus session")
-                .setSmallIcon(android.R.drawable.ic_delete) // Using system icon
-                .setPriority(NotificationCompat. PRIORITY_DEFAULT)
+                .setSmallIcon(android.R.drawable.ic_delete)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setAutoCancel(true)
                 .setSilent(false)
                 .build()
@@ -579,7 +634,7 @@ class AppMonitoringService : Service() {
                 "block_${System.currentTimeMillis()}".hashCode(),
                 notification
             )
-        } catch (e:  Exception) {
+        } catch (e: Exception) {
             Log.e(TAG, "Error showing block notification", e)
         }
     }
@@ -587,8 +642,8 @@ class AppMonitoringService : Service() {
     @RequiresPermission(Manifest.permission.VIBRATE)
     private fun vibrateDevice() {
         try {
-            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES. S) {
-                val vibratorManager = getSystemService(Context. VIBRATOR_MANAGER_SERVICE) as VibratorManager
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
                 vibratorManager.defaultVibrator
             } else {
                 @Suppress("DEPRECATION")
@@ -596,7 +651,7 @@ class AppMonitoringService : Service() {
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val vibrationEffect = VibrationEffect. createOneShot(
+                val vibrationEffect = VibrationEffect.createOneShot(
                     200,
                     VibrationEffect.DEFAULT_AMPLITUDE
                 )

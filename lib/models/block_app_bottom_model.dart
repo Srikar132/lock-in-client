@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lock_in/data/models/installed_app_model.dart';
 import 'package:lock_in/presentation/providers/app_management_provide.dart';
+import 'package:lock_in/presentation/providers/blocked_content_provider.dart';
+import 'package:lock_in/presentation/providers/auth_provider.dart';
 
 // ============================================================================
 // FIXED: BlockAppsSheet with keyboard handling
@@ -154,7 +156,15 @@ class _CategorySectionState extends ConsumerState<_CategorySection>
   Widget build(BuildContext context) {
     super.build(context);
 
-    final blockedSet = ref.watch(blockedAppsProvider);
+    final user = ref.watch(currentUserProvider).value;
+    final blockedAppsAsync = user != null 
+        ? ref.watch(permanentlyBlockedAppsProvider(user.uid))
+        : const AsyncValue<List<String>>.data([]);
+
+    final blockedSet = blockedAppsAsync.maybeWhen(
+      data: (apps) => Set<String>.from(apps),
+      orElse: () => <String>{},
+    );
 
     final blockedCount = widget.apps.where((app) =>
         blockedSet.contains(app.packageName)
@@ -205,18 +215,26 @@ class _CategorySectionState extends ConsumerState<_CategorySection>
                       value: areAllBlocked,
                       activeColor: const Color(0xFF82D65D),
                       inactiveTrackColor: const Color(0xFF3A3A3A),
-                      onChanged: (bool value) {
-                        final currentSet = Set<String>.from(blockedSet);
+                      onChanged: (bool value) async {
+                        if (user == null) return;
+                        
+                        final notifier = ref.read(blockedContentNotifierProvider.notifier);
+                        
                         if (value) {
+                          // Add all apps in this category
                           for (var app in widget.apps) {
-                            currentSet.add(app.packageName);
+                            if (!blockedSet.contains(app.packageName)) {
+                              await notifier.addPermanentlyBlockedApp(user.uid, app.packageName);
+                            }
                           }
                         } else {
+                          // Remove all apps in this category
                           for (var app in widget.apps) {
-                            currentSet.remove(app.packageName);
+                            if (blockedSet.contains(app.packageName)) {
+                              await notifier.removePermanentlyBlockedApp(user.uid, app.packageName);
+                            }
                           }
                         }
-                        ref.read(blockedAppsProvider.notifier).state = currentSet;
                       },
                     ),
                   ),
@@ -263,8 +281,15 @@ class _AppListTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final blockedSet = ref.watch(blockedAppsProvider);
-    final isBlocked = blockedSet.contains(app.packageName);
+    final user = ref.watch(currentUserProvider).value;
+    final blockedAppsAsync = user != null 
+        ? ref.watch(permanentlyBlockedAppsProvider(user.uid))
+        : const AsyncValue<List<String>>.data([]);
+
+    final isBlocked = blockedAppsAsync.maybeWhen(
+      data: (apps) => apps.contains(app.packageName),
+      orElse: () => false,
+    );
 
     return RepaintBoundary(
       child: Padding(
@@ -272,14 +297,15 @@ class _AppListTile extends ConsumerWidget {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: () {
-              final currentSet = Set<String>.from(blockedSet);
+            onTap: () async {
+              if (user == null) return;
+              
+              final notifier = ref.read(blockedContentNotifierProvider.notifier);
               if (isBlocked) {
-                currentSet.remove(app.packageName);
+                await notifier.removePermanentlyBlockedApp(user.uid, app.packageName);
               } else {
-                currentSet.add(app.packageName);
+                await notifier.addPermanentlyBlockedApp(user.uid, app.packageName);
               }
-              ref.read(blockedAppsProvider.notifier).state = currentSet;
             },
             borderRadius: BorderRadius.circular(12),
             child: Padding(
@@ -307,14 +333,15 @@ class _AppListTile extends ConsumerWidget {
                       value: isBlocked,
                       activeColor: const Color(0xFF82D65D),
                       inactiveTrackColor: const Color(0xFF3A3A3A),
-                      onChanged: (bool value) {
-                        final currentSet = Set<String>.from(blockedSet);
+                      onChanged: (bool value) async {
+                        if (user == null) return;
+                        
+                        final notifier = ref.read(blockedContentNotifierProvider.notifier);
                         if (value) {
-                          currentSet.add(app.packageName);
+                          await notifier.addPermanentlyBlockedApp(user.uid, app.packageName);
                         } else {
-                          currentSet.remove(app.packageName);
+                          await notifier.removePermanentlyBlockedApp(user.uid, app.packageName);
                         }
-                        ref.read(blockedAppsProvider.notifier).state = currentSet;
                       },
                     ),
                   ),

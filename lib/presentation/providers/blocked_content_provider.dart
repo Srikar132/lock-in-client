@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lock_in/data/models/blocked_content_model.dart';
 import 'package:lock_in/data/repositories/blocked_content_repository.dart';
+import 'package:lock_in/services/native_service.dart';
 
 // ============================================================================
 // REPOSITORY PROVIDER
@@ -11,29 +12,194 @@ final blockedContentRepositoryProvider = Provider<BlockedContentRepository>((ref
 });
 
 // ============================================================================
-// STREAM PROVIDER (Auto-cached by Firebase)
+// MAIN DATA STREAM
 // ============================================================================
 
-// Stream blocked content for a user
+// Stream all blocked content for a user
 final blockedContentProvider = StreamProvider.family<BlockedContentModel, String>(
-  (ref, userId) {
+      (ref, userId) {
     return ref.watch(blockedContentRepositoryProvider).getBlockedContentStream(userId);
   },
 );
 
-// ============================================================================
-// FUTURE PROVIDER
-// ============================================================================
-
-// Get blocked content (one-time fetch)
+// One-time fetch
 final fetchBlockedContentProvider = FutureProvider.family<BlockedContentModel?, String>(
-  (ref, userId) async {
+      (ref, userId) async {
     return ref.watch(blockedContentRepositoryProvider).getBlockedContent(userId);
   },
 );
 
 // ============================================================================
-// STATE NOTIFIER FOR BLOCKED CONTENT OPERATIONS
+// DERIVED PROVIDERS (Fixed: Returns AsyncValue for UI .when)
+// ============================================================================
+
+// ✅ FIX: Use Provider instead of StreamProvider for derived data
+// We watch the main provider and map the AsyncValue using .whenData
+// This automatically handles Loading/Error states for you.
+
+final blockedWebsitesProvider = Provider.family<AsyncValue<List<BlockedWebsite>>, String>((ref, userId) {
+  final contentAsync = ref.watch(blockedContentProvider(userId));
+  // Maps the data if available, otherwise passes through Loading/Error
+  return contentAsync.whenData((content) => content.blockedWebsites);
+});
+
+final shortFormBlocksProvider = Provider.family<AsyncValue<Map<String, ShortFormBlock>>, String>((ref, userId) {
+  final contentAsync = ref.watch(blockedContentProvider(userId));
+  return contentAsync.whenData((content) => content.shortFormBlocks);
+});
+
+final permanentlyBlockedAppsProvider = Provider.family<AsyncValue<List<String>>, String>((ref, userId) {
+  final contentAsync = ref.watch(blockedContentProvider(userId));
+  return contentAsync.whenData((content) => content.permanentlyBlockedApps);
+});
+
+// ============================================================================
+// LOGIC PROVIDERS (State Helpers)
+// ============================================================================
+
+// Check if specific app is blocked
+final isAppBlockedProvider = Provider.family<bool, ({String userId, String packageName})>((ref, params) {
+  final asyncValue = ref.watch(permanentlyBlockedAppsProvider(params.userId));
+  return asyncValue.maybeWhen(
+    data: (apps) => apps.contains(params.packageName),
+    orElse: () => false,
+  );
+});
+
+// Check if specific website is blocked
+final isWebsiteBlockedProvider = Provider.family<bool, ({String userId, String url})>((ref, params) {
+  final asyncValue = ref.watch(blockedWebsitesProvider(params.userId));
+  return asyncValue.maybeWhen(
+    data: (websites) => websites.any((w) => w.isActive && w.url.contains(params.url)),
+    orElse: () => false,
+  );
+});
+
+// Check if specific short form is blocked
+final isShortFormBlockedProvider = Provider.family<bool, ({String userId, String platform, String feature})>((ref, params) {
+  final asyncValue = ref.watch(shortFormBlocksProvider(params.userId));
+  final key = '${params.platform}_${params.feature}';
+
+  return asyncValue.maybeWhen(
+    data: (blocks) => blocks[key]?.isBlocked ?? false,
+    orElse: () => false,
+  );
+});
+
+// ============================================================================
+// COUNTS PROVIDERS
+// ============================================================================
+
+final blockedAppsCountProvider = Provider.family<int, String>((ref, userId) {
+  return ref.watch(permanentlyBlockedAppsProvider(userId)).maybeWhen(
+    data: (apps) => apps.length,
+    orElse: () => 0,
+  );
+});
+
+final blockedWebsitesCountProvider = Provider.family<int, String>((ref, userId) {
+  return ref.watch(blockedWebsitesProvider(userId)).maybeWhen(
+    data: (websites) => websites.where((w) => w.isActive).length,
+    orElse: () => 0,
+  );
+});
+
+final blockedShortFormsCountProvider = Provider.family<int, String>((ref, userId) {
+  return ref.watch(shortFormBlocksProvider(userId)).maybeWhen(
+    data: (blocks) => blocks.values.where((b) => b.isBlocked).length,
+    orElse: () => 0,
+  );
+});
+
+// ============================================================================
+// NATIVE PERSISTENT BLOCKING PROVIDERS  
+// ============================================================================
+
+// Native persistent app blocking status
+final nativePersistentAppBlockingProvider = FutureProvider<bool>((ref) async {
+  return await NativeService.isPersistentAppBlockingEnabled();
+});
+
+final nativePersistentBlockedAppsProvider = FutureProvider<List<String>>((ref) async {
+  return await NativeService.getPersistentBlockedApps();
+});
+
+// Native persistent website blocking status
+final nativePersistentWebsiteBlockingProvider = FutureProvider<bool>((ref) async {
+  return await NativeService.isPersistentWebsiteBlockingEnabled();
+});
+
+final nativePersistentBlockedWebsitesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  return await NativeService.getPersistentBlockedWebsites();
+});
+
+// Native persistent short-form blocking status
+final nativePersistentShortFormBlockingProvider = FutureProvider<bool>((ref) async {
+  return await NativeService.isPersistentShortFormBlockingEnabled();
+});
+
+final nativePersistentShortFormBlocksProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  return await NativeService.getPersistentShortFormBlocks();
+});
+
+// Native persistent notification blocking status
+final nativePersistentNotificationBlockingProvider = FutureProvider<bool>((ref) async {
+  return await NativeService.isPersistentNotificationBlockingEnabled();
+});
+
+final nativePersistentNotificationBlocksProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  return await NativeService.getPersistentNotificationBlocks();
+});
+
+// ============================================================================
+// COMBINED PROVIDERS (Firestore + Native)
+// ============================================================================
+
+/// Combined provider that shows if app blocking is active (either in Firestore or native)
+final isAppBlockingActiveProvider = Provider.family<bool, String>((ref, userId) {
+  final firestoreApps = ref.watch(permanentlyBlockedAppsProvider(userId));
+  final nativeEnabled = ref.watch(nativePersistentAppBlockingProvider);
+
+  return firestoreApps.whenData((apps) => apps.isNotEmpty).value == true ||
+         nativeEnabled.whenData((enabled) => enabled).value == true;
+});
+
+/// Combined provider for website blocking status
+final isWebsiteBlockingActiveProvider = Provider.family<bool, String>((ref, userId) {
+  final firestoreWebsites = ref.watch(blockedWebsitesProvider(userId));
+  final nativeEnabled = ref.watch(nativePersistentWebsiteBlockingProvider);
+
+  return firestoreWebsites.whenData((websites) => websites.any((w) => w.isActive)).value == true ||
+         nativeEnabled.whenData((enabled) => enabled).value == true;
+});
+
+/// Combined provider for short-form blocking status
+final isShortFormBlockingActiveProvider = Provider.family<bool, String>((ref, userId) {
+  final firestoreBlocks = ref.watch(shortFormBlocksProvider(userId));
+  final nativeEnabled = ref.watch(nativePersistentShortFormBlockingProvider);
+
+  return firestoreBlocks.whenData((blocks) => blocks.values.any((b) => b.isBlocked)).value == true ||
+         nativeEnabled.whenData((enabled) => enabled).value == true;
+});
+
+/// Provider that returns a summary of all blocking statuses
+final blockingSummaryProvider = Provider.family<Map<String, bool>, String>((ref, userId) {
+  return {
+    'apps': ref.watch(isAppBlockingActiveProvider(userId)),
+    'websites': ref.watch(isWebsiteBlockingActiveProvider(userId)),
+    'shortForm': ref.watch(isShortFormBlockingActiveProvider(userId)),
+    'notifications': ref.watch(nativePersistentNotificationBlockingProvider).whenData((enabled) => enabled).value == true,
+  };
+});
+
+/// Provider that checks if any blocking is active
+final isAnyBlockingActiveProvider = Provider.family<bool, String>((ref, userId) {
+  final summary = ref.watch(blockingSummaryProvider(userId));
+  return summary.values.any((isActive) => isActive);
+});
+
+// ============================================================================
+// STATE NOTIFIER (Actions)
 // ============================================================================
 
 class BlockedContentNotifier extends Notifier<AsyncValue<void>> {
@@ -47,25 +213,23 @@ class BlockedContentNotifier extends Notifier<AsyncValue<void>> {
 
   // Set or update blocked content
   Future<void> setBlockedContent(
-    String userId,
-    BlockedContentModel blockedContent,
-  ) async {
+      String userId,
+      BlockedContentModel blockedContent,
+      ) async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       await _repository.setBlockedContent(userId, blockedContent);
-      debugPrint('✅ Blocked content updated');
     });
   }
 
   // Update specific fields
   Future<void> updateBlockedContent(
-    String userId,
-    Map<String, dynamic> updates,
-  ) async {
+      String userId,
+      Map<String, dynamic> updates,
+      ) async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       await _repository.updateBlockedContent(userId, updates);
-      debugPrint('✅ Blocked content fields updated');
     });
   }
 
@@ -75,7 +239,6 @@ class BlockedContentNotifier extends Notifier<AsyncValue<void>> {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       await _repository.addPermanentlyBlockedApp(userId, packageName);
-      debugPrint('✅ App permanently blocked: $packageName');
     });
   }
 
@@ -83,18 +246,6 @@ class BlockedContentNotifier extends Notifier<AsyncValue<void>> {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       await _repository.removePermanentlyBlockedApp(userId, packageName);
-      debugPrint('✅ App unblocked: $packageName');
-    });
-  }
-
-  Future<void> setPermanentlyBlockedApps(
-    String userId,
-    List<String> packageNames,
-  ) async {
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
-      await _repository.setPermanentlyBlockedApps(userId, packageNames);
-      debugPrint('✅ ${packageNames.length} apps permanently blocked');
     });
   }
 
@@ -104,7 +255,6 @@ class BlockedContentNotifier extends Notifier<AsyncValue<void>> {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       await _repository.addBlockedWebsite(userId, website);
-      debugPrint('✅ Website blocked: ${website.url}');
     });
   }
 
@@ -112,30 +262,13 @@ class BlockedContentNotifier extends Notifier<AsyncValue<void>> {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       await _repository.removeBlockedWebsite(userId, url);
-      debugPrint('✅ Website unblocked: $url');
     });
   }
 
-  Future<void> setBlockedWebsites(
-    String userId,
-    List<BlockedWebsite> websites,
-  ) async {
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
-      await _repository.setBlockedWebsites(userId, websites);
-      debugPrint('✅ ${websites.length} websites blocked');
-    });
-  }
-
-  Future<void> toggleWebsiteBlockStatus(
-    String userId,
-    String url,
-    bool isActive,
-  ) async {
+  Future<void> toggleWebsiteBlockStatus(String userId, String url, bool isActive) async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       await _repository.toggleWebsiteBlockStatus(userId, url, isActive);
-      debugPrint('✅ Website block status toggled: $url -> $isActive');
     });
   }
 
@@ -145,39 +278,15 @@ class BlockedContentNotifier extends Notifier<AsyncValue<void>> {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       await _repository.setShortFormBlock(userId, block);
-      debugPrint('✅ Short form blocked: ${block.platform} ${block.feature}');
-    });
-  }
-
-  Future<void> removeShortFormBlock(
-    String userId,
-    String platform,
-    String feature,
-  ) async {
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
-      await _repository.removeShortFormBlock(userId, platform, feature);
-      debugPrint('✅ Short form unblocked: $platform $feature');
-    });
-  }
-
-  Future<void> setShortFormBlocks(
-    String userId,
-    Map<String, ShortFormBlock> blocks,
-  ) async {
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
-      await _repository.setShortFormBlocks(userId, blocks);
-      debugPrint('✅ ${blocks.length} short forms blocked');
     });
   }
 
   Future<void> toggleShortFormBlockStatus(
-    String userId,
-    String platform,
-    String feature,
-    bool isBlocked,
-  ) async {
+      String userId,
+      String platform,
+      String feature,
+      bool isBlocked,
+      ) async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       await _repository.toggleShortFormBlockStatus(
@@ -186,25 +295,214 @@ class BlockedContentNotifier extends Notifier<AsyncValue<void>> {
         feature,
         isBlocked,
       );
-      debugPrint('✅ Short form block toggled: $platform $feature -> $isBlocked');
     });
   }
 
-  // === UTILITY METHODS ===
+  // ============================================================================
+  // NATIVE PERSISTENT BLOCKING ACTIONS
+  // ============================================================================
 
-  Future<void> clearBlockedContent(String userId) async {
+  /// Enable/disable persistent app blocking and sync with Firestore
+  Future<void> setPersistentAppBlocking({
+    required String userId,
+    required bool enabled,
+    List<String>? blockedApps,
+    bool syncToFirestore = true,
+  }) async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-      await _repository.clearBlockedContent(userId);
-      debugPrint('✅ All blocked content cleared');
+      // 1. Update native persistent blocking
+      await NativeService.setPersistentAppBlocking(
+        enabled: enabled,
+        blockedApps: blockedApps,
+      );
+
+      // 2. Sync to Firestore if requested
+      if (syncToFirestore && blockedApps != null) {
+        await _repository.updateBlockedContent(userId, {
+          'permanentlyBlockedApps': blockedApps,
+          'lastUpdated': DateTime.now().toIso8601String(),
+        });
+      }
+
+      // 3. Invalidate cache to refresh UI
+      ref.invalidate(nativePersistentAppBlockingProvider);
+      ref.invalidate(nativePersistentBlockedAppsProvider);
     });
   }
 
-  Future<void> resetBlockedContent(String userId) async {
+  /// Enable/disable persistent website blocking and sync with Firestore
+  Future<void> setPersistentWebsiteBlocking({
+    required String userId,
+    required bool enabled,
+    List<BlockedWebsite>? blockedWebsites,
+    bool syncToFirestore = true,
+  }) async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-      await _repository.resetBlockedContent(userId);
-      debugPrint('✅ Blocked content reset to default');
+      // Convert BlockedWebsite objects to Map for native
+      final websiteMaps = blockedWebsites?.map((w) => w.toMap()).toList();
+
+      // 1. Update native persistent blocking
+      await NativeService.setPersistentWebsiteBlocking(
+        enabled: enabled,
+        blockedWebsites: websiteMaps,
+      );
+
+      // 2. Sync to Firestore if requested
+      if (syncToFirestore && blockedWebsites != null) {
+        await _repository.updateBlockedContent(userId, {
+          'blockedWebsites': blockedWebsites.map((w) => w.toMap()).toList(),
+          'lastUpdated': DateTime.now().toIso8601String(),
+        });
+      }
+
+      // 3. Invalidate cache to refresh UI
+      ref.invalidate(nativePersistentWebsiteBlockingProvider);
+      ref.invalidate(nativePersistentBlockedWebsitesProvider);
+    });
+  }
+
+  /// Enable/disable persistent short-form content blocking and sync with Firestore
+  Future<void> setPersistentShortFormBlocking({
+    required String userId,
+    required bool enabled,
+    Map<String, ShortFormBlock>? shortFormBlocks,
+    bool syncToFirestore = true,
+  }) async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      // Convert ShortFormBlock objects to Map for native
+      final blockMaps = shortFormBlocks?.map((key, value) => MapEntry(key, value.toMap()));
+
+      // 1. Update native persistent blocking
+      await NativeService.setPersistentShortFormBlocking(
+        enabled: enabled,
+        shortFormBlocks: blockMaps,
+      );
+
+      // 2. Sync to Firestore if requested
+      if (syncToFirestore && shortFormBlocks != null) {
+        final blocksMap = shortFormBlocks.map((key, value) => MapEntry(key, value.toMap()));
+        await _repository.updateBlockedContent(userId, {
+          'shortFormBlocks': blocksMap,
+          'lastUpdated': DateTime.now().toIso8601String(),
+        });
+      }
+
+      // 3. Invalidate cache to refresh UI
+      ref.invalidate(nativePersistentShortFormBlockingProvider);
+      ref.invalidate(nativePersistentShortFormBlocksProvider);
+    });
+  }
+
+  /// Enable/disable persistent notification blocking (no Firestore equivalent currently)
+  Future<void> setPersistentNotificationBlocking({
+    required bool enabled,
+    Map<String, dynamic>? notificationBlocks,
+  }) async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      // Update native persistent blocking
+      await NativeService.setPersistentNotificationBlocking(
+        enabled: enabled,
+        notificationBlocks: notificationBlocks,
+      );
+
+      // Invalidate cache to refresh UI
+      ref.invalidate(nativePersistentNotificationBlockingProvider);
+      ref.invalidate(nativePersistentNotificationBlocksProvider);
+    });
+  }
+
+  /// Sync Firestore blocked content to native persistent blocking
+  Future<void> syncFirestoreToNative(String userId) async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      final content = await _repository.getBlockedContent(userId);
+      if (content != null) {
+        // Sync apps
+        if (content.permanentlyBlockedApps.isNotEmpty) {
+          await NativeService.setPersistentAppBlocking(
+            enabled: true,
+            blockedApps: content.permanentlyBlockedApps,
+          );
+        }
+
+        // Sync websites
+        if (content.blockedWebsites.isNotEmpty) {
+          final activeWebsites = content.blockedWebsites.where((w) => w.isActive).toList();
+          if (activeWebsites.isNotEmpty) {
+            await NativeService.setPersistentWebsiteBlocking(
+              enabled: true,
+              blockedWebsites: activeWebsites.map((w) => w.toMap()).toList(),
+            );
+          }
+        }
+
+        // Sync short-form blocks
+        final activeShortFormBlocks = content.shortFormBlocks.entries
+            .where((entry) => entry.value.isBlocked)
+            .fold<Map<String, dynamic>>({}, (map, entry) {
+          map[entry.key] = entry.value.toMap();
+          return map;
+        });
+
+        if (activeShortFormBlocks.isNotEmpty) {
+          await NativeService.setPersistentShortFormBlocking(
+            enabled: true,
+            shortFormBlocks: activeShortFormBlocks,
+          );
+        }
+      }
+
+      // Invalidate all caches
+      ref.invalidate(nativePersistentAppBlockingProvider);
+      ref.invalidate(nativePersistentBlockedAppsProvider);
+      ref.invalidate(nativePersistentWebsiteBlockingProvider);
+      ref.invalidate(nativePersistentBlockedWebsitesProvider);
+      ref.invalidate(nativePersistentShortFormBlockingProvider);
+      ref.invalidate(nativePersistentShortFormBlocksProvider);
+    });
+  }
+
+  /// Sync native persistent blocking to Firestore
+  Future<void> syncNativeToFirestore(String userId) async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      final updates = <String, dynamic>{
+        'lastUpdated': DateTime.now().toIso8601String(),
+      };
+
+      // Sync apps
+      final isAppBlockingEnabled = await NativeService.isPersistentAppBlockingEnabled();
+      if (isAppBlockingEnabled) {
+        final blockedApps = await NativeService.getPersistentBlockedApps();
+        updates['permanentlyBlockedApps'] = blockedApps;
+      }
+
+      // Sync websites
+      final isWebsiteBlockingEnabled = await NativeService.isPersistentWebsiteBlockingEnabled();
+      if (isWebsiteBlockingEnabled) {
+        final blockedWebsites = await NativeService.getPersistentBlockedWebsites();
+        // Convert to BlockedWebsite objects
+        final websites = blockedWebsites.map((w) => BlockedWebsite.fromMap(w)).toList();
+        updates['blockedWebsites'] = websites.map((w) => w.toMap()).toList();
+      }
+
+      // Sync short-form blocks
+      final isShortFormBlockingEnabled = await NativeService.isPersistentShortFormBlockingEnabled();
+      if (isShortFormBlockingEnabled) {
+        final shortFormBlocks = await NativeService.getPersistentShortFormBlocks();
+        // Convert to ShortFormBlock objects
+        final blocks = shortFormBlocks.map((key, value) {
+          return MapEntry(key, ShortFormBlock.fromMap(Map<String, dynamic>.from(value)));
+        });
+        updates['shortFormBlocks'] = blocks.map((key, value) => MapEntry(key, value.toMap()));
+      }
+
+      // Update Firestore
+      await _repository.updateBlockedContent(userId, updates);
     });
   }
 }
@@ -212,78 +510,4 @@ class BlockedContentNotifier extends Notifier<AsyncValue<void>> {
 // Notifier Provider
 final blockedContentNotifierProvider = NotifierProvider<BlockedContentNotifier, AsyncValue<void>>(() {
   return BlockedContentNotifier();
-});
-
-// ============================================================================
-// DERIVED PROVIDERS (Computed values)
-// ============================================================================
-
-// Get permanently blocked apps list
-final permanentlyBlockedAppsProvider = Provider.family<List<String>, String>((ref, userId) {
-  final blockedContentAsync = ref.watch(blockedContentProvider(userId));
-  return blockedContentAsync.maybeWhen(
-    data: (content) => content.permanentlyBlockedApps,
-    orElse: () => [],
-  );
-});
-
-// Get blocked websites list
-final blockedWebsitesProvider = Provider.family<List<BlockedWebsite>, String>((ref, userId) {
-  final blockedContentAsync = ref.watch(blockedContentProvider(userId));
-  return blockedContentAsync.maybeWhen(
-    data: (content) => content.blockedWebsites,
-    orElse: () => [],
-  );
-});
-
-// Get short form blocks map
-final shortFormBlocksProvider = Provider.family<Map<String, ShortFormBlock>, String>((ref, userId) {
-  final blockedContentAsync = ref.watch(blockedContentProvider(userId));
-  return blockedContentAsync.maybeWhen(
-    data: (content) => content.shortFormBlocks,
-    orElse: () => {},
-  );
-});
-
-// Check if specific app is blocked
-final isAppBlockedProvider = Provider.family<bool, ({String userId, String packageName})>((ref, params) {
-  final blockedApps = ref.watch(permanentlyBlockedAppsProvider(params.userId));
-  return blockedApps.contains(params.packageName);
-});
-
-// Check if specific website is blocked
-final isWebsiteBlockedProvider = Provider.family<bool, ({String userId, String url})>((ref, params) {
-  final websites = ref.watch(blockedWebsitesProvider(params.userId));
-  return websites.any((w) => w.isActive && w.url.contains(params.url));
-});
-
-// Check if specific short form is blocked
-final isShortFormBlockedProvider = Provider.family<bool, ({String userId, String platform, String feature})>((ref, params) {
-  final shortForms = ref.watch(shortFormBlocksProvider(params.userId));
-  final key = '${params.platform}_${params.feature}';
-  return shortForms[key]?.isBlocked ?? false;
-});
-
-// Get counts
-final blockedAppsCountProvider = Provider.family<int, String>((ref, userId) {
-  final blockedApps = ref.watch(permanentlyBlockedAppsProvider(userId));
-  return blockedApps.length;
-});
-
-final blockedWebsitesCountProvider = Provider.family<int, String>((ref, userId) {
-  final websites = ref.watch(blockedWebsitesProvider(userId));
-  return websites.where((w) => w.isActive).length;
-});
-
-final blockedShortFormsCountProvider = Provider.family<int, String>((ref, userId) {
-  final shortForms = ref.watch(shortFormBlocksProvider(userId));
-  return shortForms.values.where((b) => b.isBlocked).length;
-});
-
-// Get total blocked content count
-final totalBlockedContentCountProvider = Provider.family<int, String>((ref, userId) {
-  final appsCount = ref.watch(blockedAppsCountProvider(userId));
-  final websitesCount = ref.watch(blockedWebsitesCountProvider(userId));
-  final shortFormsCount = ref.watch(blockedShortFormsCountProvider(userId));
-  return appsCount + websitesCount + shortFormsCount;
 });

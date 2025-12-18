@@ -4,7 +4,10 @@ import 'package:lock_in/data/models/installed_app_model.dart';
 import 'package:lock_in/models/block_app_bottom_model.dart';
 import 'package:lock_in/models/model_manager.dart';
 import 'package:lock_in/presentation/providers/app_management_provide.dart';
+import 'package:lock_in/presentation/providers/blocked_content_provider.dart';
 import 'package:lock_in/widgets/bottom_sheet_darg_handler.dart';
+import 'package:lock_in/presentation/providers/auth_provider.dart';
+import 'package:lock_in/presentation/providers/settings_provider.dart';
 
 // ============================================================================
 // OPTIMIZED: Extracted BlockedAppsSection to prevent unnecessary rebuilds
@@ -14,7 +17,15 @@ class _BlockedAppsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final blockedSet = ref.watch(blockedAppsProvider);
+    final user = ref.watch(currentUserProvider).value;
+    final blockedAppsAsync = user != null 
+        ? ref.watch(permanentlyBlockedAppsProvider(user.uid))
+        : const AsyncValue<List<String>>.data([]);
+
+    final blockedSet = blockedAppsAsync.maybeWhen(
+      data: (apps) => Set<String>.from(apps),
+      orElse: () => <String>{},
+    );
 
     return GestureDetector(
       onTap: () async {
@@ -87,9 +98,7 @@ class _BlockedAppsPreview extends ConsumerWidget {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            RepaintBoundary(
-              child: _AppIconStack(apps: blockedAppsList),
-            ),
+            RepaintBoundary(child: _AppIconStack(apps: blockedAppsList)),
             const SizedBox(width: 12),
             Text(
               '${blockedSet.length} app${blockedSet.length != 1 ? 's' : ''}',
@@ -185,7 +194,8 @@ class _AppIconCircle extends ConsumerWidget {
             return const Icon(Icons.android, size: 12, color: Colors.white);
           },
           loading: () => const SizedBox(),
-          error: (_, __) => const Icon(Icons.android, size: 12, color: Colors.white),
+          error: (_, __) =>
+              const Icon(Icons.android, size: 12, color: Colors.white),
         ),
       ),
     );
@@ -193,28 +203,19 @@ class _AppIconCircle extends ConsumerWidget {
 }
 
 // ============================================================================
-// MAIN WIDGET - Fixed for keyboard handling
+// MAIN WIDGET - Now handles settings internally
 // ============================================================================
 class FocusTimeBottomSheet extends ConsumerStatefulWidget {
-  final int initialDuration;
-  final int initialBreaks;
-  final bool initialBlockHomeScreen;
-  final bool initialStrictMode;
-  final String initialTimerMode;
-  final Function(int duration, int breaks, bool blockHome, bool strictMode, String timerMode) onSave;
+  final Function() onSave;
 
   const FocusTimeBottomSheet({
     super.key,
-    required this.initialDuration,
-    required this.initialBreaks,
-    required this.initialBlockHomeScreen,
-    required this.initialStrictMode,
-    required this.initialTimerMode,
     required this.onSave,
   });
 
   @override
-  ConsumerState<FocusTimeBottomSheet> createState() => _FocusTimeBottomSheetState();
+  ConsumerState<FocusTimeBottomSheet> createState() =>
+      _FocusTimeBottomSheetState();
 }
 
 class _FocusTimeBottomSheetState extends ConsumerState<FocusTimeBottomSheet> {
@@ -223,19 +224,124 @@ class _FocusTimeBottomSheetState extends ConsumerState<FocusTimeBottomSheet> {
   late bool _blockHomeScreen;
   late bool _strictMode;
   late String _selectedMode;
+  bool _isInitialized = false;
 
   @override
-  void initState() {
-    super.initState();
-    _duration = widget.initialDuration;
-    _breaks = widget.initialBreaks;
-    _blockHomeScreen = widget.initialBlockHomeScreen;
-    _strictMode = widget.initialStrictMode;
-    _selectedMode = widget.initialTimerMode;
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    
+    // Initialize settings from provider only once
+    if (!_isInitialized) {
+      final user = ref.read(currentUserProvider).value;
+      if (user != null) {
+        final settingsAsync = ref.read(userSettingsProvider(user.uid));
+        settingsAsync.whenData((settings) {
+          if (settings != null && mounted) {
+            setState(() {
+              _duration = settings.defaultDuration;
+              _breaks = settings.numberOfBreaks;
+              _blockHomeScreen = settings.blockPhoneHomeScreen;
+              _strictMode = settings.strictMode;
+              _selectedMode = settings.timerMode;
+              _isInitialized = true;
+            });
+          }
+        });
+      }
+      
+      // Set defaults if settings not available
+      if (!_isInitialized) {
+        _duration = 25;
+        _breaks = 0;
+        _blockHomeScreen = false;
+        _strictMode = false;
+        _selectedMode = "timer";
+        _isInitialized = true;
+      }
+    }
+  }
+
+  Future<void> _updateSettings({
+    int? duration,
+    int? breaks,
+    bool? blockHome,
+    bool? strict,
+    String? mode,
+  }) async {
+    final user = ref.read(currentUserProvider).value;
+    if (user == null) return;
+
+    try {
+      // Get current settings to copy from
+      final currentSettings = ref.read(userSettingsProvider(user.uid)).value;
+      if (currentSettings == null) return;
+
+      final updated = currentSettings.copyWith(
+        defaultDuration: duration ?? _duration,
+        numberOfBreaks: breaks ?? _breaks,
+        blockPhoneHomeScreen: blockHome ?? _blockHomeScreen,
+        strictMode: strict ?? _strictMode,
+        timerMode: mode ?? _selectedMode,
+      );
+
+      await ref
+          .read(settingsRepositoryProvider)
+          .updateSettings(user.uid, updated);
+      // Refresh the provider so the UI stays in sync
+      ref.invalidate(userSettingsProvider(user.uid));
+    } catch (e) {
+      debugPrint('Failed to update settings: $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(currentUserProvider).value;
+    
+    if (user == null) {
+      return Container(
+        height: MediaQuery.of(context).size.height * 0.3,
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: const Center(child: Text('Please login first')),
+      );
+    }
+
+    final settingsAsync = ref.watch(userSettingsProvider(user.uid));
+
+    return settingsAsync.when(
+      data: (settings) => _buildContent(context, settings),
+      loading: () => Container(
+        height: MediaQuery.of(context).size.height * 0.3,
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (_, __) => _buildContent(context, null),
+    );
+  }
+
+  Widget _buildContent(BuildContext context, settings) {
+    // Update state if settings loaded
+    if (settings != null && !_isInitialized) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _duration = settings.defaultDuration;
+            _breaks = settings.numberOfBreaks;
+            _blockHomeScreen = settings.blockPhoneHomeScreen;
+            _strictMode = settings.strictMode;
+            _selectedMode = settings.timerMode;
+            _isInitialized = true;
+          });
+        }
+      });
+    }
+
     // FIXED: Account for keyboard
     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
     final screenHeight = MediaQuery.of(context).size.height;
@@ -281,7 +387,10 @@ class _FocusTimeBottomSheetState extends ConsumerState<FocusTimeBottomSheet> {
                     _buildToggleOption(
                       title: 'Block phone home screen',
                       value: _blockHomeScreen,
-                      onChanged: (value) => setState(() => _blockHomeScreen = value),
+                      onChanged: (value) {
+                        setState(() => _blockHomeScreen = value);
+                        _updateSettings(blockHome: value);
+                      },
                     ),
                     const SizedBox(height: 12),
                     _buildStrictModeOption(),
@@ -299,14 +408,8 @@ class _FocusTimeBottomSheetState extends ConsumerState<FocusTimeBottomSheet> {
                 height: 56,
                 child: ElevatedButton(
                   onPressed: () {
-                    widget.onSave(
-                      _duration,
-                      _breaks,
-                      _blockHomeScreen,
-                      _strictMode,
-                      _selectedMode,
-                    );
                     Navigator.pop(context);
+                    widget.onSave();
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
@@ -318,10 +421,7 @@ class _FocusTimeBottomSheetState extends ConsumerState<FocusTimeBottomSheet> {
                   ),
                   child: const Text(
                     'Start Focus Now',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -358,11 +458,16 @@ class _FocusTimeBottomSheetState extends ConsumerState<FocusTimeBottomSheet> {
   Widget _buildModeButton(String mode, bool isSelected) {
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _selectedMode = mode),
+        onTap: () {
+          setState(() => _selectedMode = mode);
+          _updateSettings(mode: mode);
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected ? Theme.of(context).colorScheme.primary : Colors.transparent,
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
@@ -404,10 +509,7 @@ class _FocusTimeBottomSheetState extends ConsumerState<FocusTimeBottomSheet> {
               children: [
                 Text(
                   '$_duration mins',
-                  style: TextStyle(
-                    color: _textSecondaryColor,
-                    fontSize: 16,
-                  ),
+                  style: TextStyle(color: _textSecondaryColor, fontSize: 16),
                 ),
                 const SizedBox(width: 8),
                 Icon(Icons.chevron_right, color: _iconColor, size: 20),
@@ -444,10 +546,7 @@ class _FocusTimeBottomSheetState extends ConsumerState<FocusTimeBottomSheet> {
               children: [
                 Text(
                   '$_breaks break${_breaks != 1 ? 's' : ''}',
-                  style: TextStyle(
-                    color: _textSecondaryColor,
-                    fontSize: 16,
-                  ),
+                  style: TextStyle(color: _textSecondaryColor, fontSize: 16),
                 ),
                 const SizedBox(width: 8),
                 Icon(Icons.chevron_right, color: _iconColor, size: 20),
@@ -523,7 +622,10 @@ class _FocusTimeBottomSheetState extends ConsumerState<FocusTimeBottomSheet> {
                   ),
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFFB800),
                       borderRadius: BorderRadius.circular(6),
@@ -543,7 +645,10 @@ class _FocusTimeBottomSheetState extends ConsumerState<FocusTimeBottomSheet> {
                 scale: 0.8,
                 child: Switch(
                   value: _strictMode,
-                  onChanged: (value) => setState(() => _strictMode = value),
+                  onChanged: (value) {
+                    setState(() => _strictMode = value);
+                    _updateSettings(strict: value);
+                  },
                   activeColor: Colors.white,
                   activeTrackColor: Colors.white.withOpacity(0.3),
                   inactiveThumbColor: Colors.white.withOpacity(0.5),

@@ -23,15 +23,11 @@ class MainActivity: FlutterActivity() {
         private const val TAG = "MainActivity"
         private const val METHOD_CHANNEL = "com.lockin.focus/native"
         private const val EVENT_CHANNEL = "com.lockin.focus/events"
-        private const val HEALTH_CHANNEL = "com.lockin.focus/health"
-        private const val ANALYTICS_CHANNEL = "com.lockin.focus/analytics"
     }
-
-    private val CHANNEL = "com.example.lock_in/native"
 
     // CORE MANAGERS
     private lateinit var permissionManager: PermissionManager
-    private lateinit var focusModeManager : FocusModeManager
+    private lateinit var focusModeManager: FocusModeManager
     private lateinit var appLimitManager: AppLimitManager
 
     // Method channels
@@ -42,22 +38,19 @@ class MainActivity: FlutterActivity() {
     private var eventSink: EventChannel.EventSink? = null
     private val eventQueue = ConcurrentHashMap<String, Any>()
 
-
     // SCOPE
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        
+
         try {
             initializeManagers()
-
-            setUpMethodChannels(flutterEngine)
-        }catch (e : Exception) {
-            Log.e(TAG , "ERROR CONFIGURING FLUTTER ENGINE")
+            setupMethodChannels(flutterEngine)
+            setupEventChannels(flutterEngine)
+        } catch (e: Exception) {
+            Log.e(TAG, "ERROR CONFIGURING FLUTTER ENGINE", e)
         }
-        
-
     }
 
     private fun initializeManagers() {
@@ -66,28 +59,24 @@ class MainActivity: FlutterActivity() {
             focusModeManager = FocusModeManager(this)
             appLimitManager = AppLimitManager(this)
 
-
             Log.d(TAG, "All managers initialized successfully")
-        }catch (e : Exception) {
+        } catch (e: Exception) {
             Log.e(TAG, "Error initializing managers", e)
             throw e
         }
     }
 
-    private fun setUpMethodChannels(flutterEngine: FlutterEngine) {
-        // MAIN METHOD CHANNEL
+    private fun setupMethodChannels(flutterEngine: FlutterEngine) {
         methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, METHOD_CHANNEL)
-        methodChannel.setMethodCallHandler{ call , result ->
-            handleMainMethodCall(call.method , call.arguments , result)
+        methodChannel.setMethodCallHandler { call, result ->
+            handleMainMethodCall(call.method, call.arguments, result)
         }
-
+        Log.d(TAG, "Method channel configured")
     }
 
-
     private fun setupEventChannels(flutterEngine: FlutterEngine) {
-        // Main event channel
-        eventChannel = EventChannel(flutterEngine. dartExecutor.binaryMessenger, EVENT_CHANNEL)
-        eventChannel.setStreamHandler(object : EventChannel. StreamHandler {
+        eventChannel = EventChannel(flutterEngine.dartExecutor.binaryMessenger, EVENT_CHANNEL)
+        eventChannel.setStreamHandler(object : EventChannel.StreamHandler {
             override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                 eventSink = events
                 focusModeManager.setEventSink(events)
@@ -97,30 +86,30 @@ class MainActivity: FlutterActivity() {
                     sendEventToFlutter(event, data)
                 }
                 eventQueue.clear()
+
+                Log.d(TAG, "Event channel connected")
             }
 
             override fun onCancel(arguments: Any?) {
                 eventSink = null
                 focusModeManager.setEventSink(null)
+                Log.d(TAG, "Event channel disconnected")
             }
         })
-
-        Log.d(TAG, "Event channels configured")
     }
 
     private fun handleMainMethodCall(
         method: String,
-        arguments:  Any?,
+        arguments: Any?,
         result: MethodChannel.Result
     ) {
         scope.launch {
             try {
                 Log.v(TAG, "Method call: $method")
 
-                when(method) {
+                when (method) {
                     // ====================
                     // FOCUS SESSION METHODS
-                    // ====================
                     // ====================
                     "startFocusSession" -> {
                         val sessionData = arguments as? Map<String, Any>
@@ -139,7 +128,7 @@ class MainActivity: FlutterActivity() {
 
                     "resumeFocusSession" -> {
                         val success = focusModeManager.resumeSession()
-                        result. success(success)
+                        result.success(success)
                     }
 
                     "endFocusSession" -> {
@@ -152,11 +141,9 @@ class MainActivity: FlutterActivity() {
                         result.success(status)
                     }
 
-
                     // =======================
                     // PERMISSIONS
                     // =======================
-                    // Usage Stats
                     "hasUsageStatsPermission" -> {
                         result.success(permissionManager.hasUsageStatsPermission())
                     }
@@ -164,7 +151,6 @@ class MainActivity: FlutterActivity() {
                         permissionManager.requestUsageStatsPermission()
                         result.success(null)
                     }
-                    // Accessibility
                     "hasAccessibilityPermission" -> {
                         result.success(permissionManager.hasAccessibilityPermission())
                     }
@@ -172,7 +158,6 @@ class MainActivity: FlutterActivity() {
                         permissionManager.requestAccessibilityPermission()
                         result.success(null)
                     }
-                    // Background
                     "hasBackgroundPermission" -> {
                         result.success(permissionManager.hasBackgroundPermission())
                     }
@@ -180,7 +165,6 @@ class MainActivity: FlutterActivity() {
                         permissionManager.requestBackgroundPermission()
                         result.success(null)
                     }
-                    // Overlay
                     "hasOverlayPermission" -> {
                         result.success(permissionManager.hasOverlayPermission())
                     }
@@ -188,7 +172,6 @@ class MainActivity: FlutterActivity() {
                         permissionManager.requestOverlayPermission()
                         result.success(null)
                     }
-                    // Display Popup
                     "hasDisplayPopupPermission" -> {
                         result.success(permissionManager.hasDisplayPopupPermission())
                     }
@@ -196,7 +179,6 @@ class MainActivity: FlutterActivity() {
                         permissionManager.requestDisplayPopupPermission()
                         result.success(null)
                     }
-                    // Notifications
                     "hasNotificationPermission" -> {
                         result.success(permissionManager.hasNotificationPermission())
                     }
@@ -236,21 +218,90 @@ class MainActivity: FlutterActivity() {
                         }
                     }
 
+                    // ====================
+                    // PERSISTENT (ALWAYS-ON) BLOCKING
+                    // ====================
+                    
+                    // App blocking
+                    "setPersistentAppBlocking" -> {
+                        val args = arguments as? Map<*, *>
+                        val enabled = args?.get("enabled") as? Boolean ?: false
+                        val apps = (args?.get("blockedApps") as? List<*>)?.mapNotNull { it as? String }
+                        focusModeManager.setPersistentAppBlocking(enabled, apps)
+                        result.success(null)
+                    }
 
+                    "isPersistentAppBlockingEnabled" -> {
+                        result.success(focusModeManager.isPersistentAppBlockingEnabled())
+                    }
 
+                    "getPersistentBlockedApps" -> {
+                        result.success(focusModeManager.getPersistentBlockedApps())
+                    }
 
+                    // Website blocking
+                    "setPersistentWebsiteBlocking" -> {
+                        val args = arguments as? Map<*, *>
+                        val enabled = args?.get("enabled") as? Boolean ?: false
+                        val websites = (args?.get("blockedWebsites") as? List<*>)?.mapNotNull { 
+                            it as? Map<String, Any> 
+                        }
+                        focusModeManager.setPersistentWebsiteBlocking(enabled, websites)
+                        result.success(null)
+                    }
+
+                    "isPersistentWebsiteBlockingEnabled" -> {
+                        result.success(focusModeManager.isPersistentWebsiteBlockingEnabled())
+                    }
+
+                    "getPersistentBlockedWebsites" -> {
+                        result.success(focusModeManager.getPersistentBlockedWebsites())
+                    }
+
+                    // Short-form content blocking
+                    "setPersistentShortFormBlocking" -> {
+                        val args = arguments as? Map<*, *>
+                        val enabled = args?.get("enabled") as? Boolean ?: false
+                        val blocks = args?.get("shortFormBlocks") as? Map<String, Any>
+                        focusModeManager.setPersistentShortFormBlocking(enabled, blocks)
+                        result.success(null)
+                    }
+
+                    "isPersistentShortFormBlockingEnabled" -> {
+                        result.success(focusModeManager.isPersistentShortFormBlockingEnabled())
+                    }
+
+                    "getPersistentShortFormBlocks" -> {
+                        result.success(focusModeManager.getPersistentShortFormBlocks())
+                    }
+
+                    // Notification blocking
+                    "setPersistentNotificationBlocking" -> {
+                        val args = arguments as? Map<*, *>
+                        val enabled = args?.get("enabled") as? Boolean ?: false
+                        val blocks = args?.get("notificationBlocks") as? Map<String, Any>
+                        focusModeManager.setPersistentNotificationBlocking(enabled, blocks)
+                        result.success(null)
+                    }
+
+                    "isPersistentNotificationBlockingEnabled" -> {
+                        result.success(focusModeManager.isPersistentNotificationBlockingEnabled())
+                    }
+
+                    "getPersistentNotificationBlocks" -> {
+                        result.success(focusModeManager.getPersistentNotificationBlocks())
+                    }
 
                     else -> {
                         result.notImplemented()
                     }
                 }
-            }catch (e : Exception) {
+            } catch (e: Exception) {
                 Log.e(TAG, "Error handling method call: $method", e)
-                result.error("METHOD_ERROR", "Error handling method $method: ${e.message}", mapOf(
+                result.error("METHOD_ERROR", "Error: ${e.message}", mapOf(
                     "method" to method,
                     "error" to e.javaClass.simpleName,
-                    "message" to (e.message ?:  "Unknown error"),
-                    "stackTrace" to e.stackTrace.take(5).map { it.toString() }
+                    "message" to (e.message ?: "Unknown error")
                 ))
             }
         }
@@ -267,12 +318,10 @@ class MainActivity: FlutterActivity() {
             if (eventSink != null) {
                 eventSink?.success(eventData)
             } else {
-                // Queue event for later delivery
                 eventQueue[event] = data
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error sending event to Flutter: $event", e)
         }
     }
-
 }

@@ -24,6 +24,8 @@ dependencies:
   shimmer: ^3.0.0
   smooth_page_indicator: ^2.0.1
   audioplayers: ^6.0.0
+  go_router: ^17.0.1
+  lottie: ^3.3.2
 
 dev_dependencies:
   flutter_test:

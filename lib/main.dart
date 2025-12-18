@@ -4,7 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lock_in/core/theme/app_theme.dart';
+import 'package:lock_in/presentation/overlays/overlay_app.dart';
 import 'package:lock_in/presentation/screens/splash_screen.dart';
+
+// Overlay entry point - separate from main app
+void overlayMain() {
+  runApp(
+    const ProviderScope(
+      child: OverlayApp(),
+    ),
+  );
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

@@ -1,12 +1,13 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lock_in/core/constants/images.dart';
 import 'package:lock_in/models/focus_time_bottom_model.dart';
 import 'package:lock_in/models/model_manager.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
+import 'package:lock_in/presentation/providers/focus_session_provider.dart';
+import 'package:lock_in/presentation/providers/blocked_content_provider.dart';
 import 'package:lock_in/presentation/providers/settings_provider.dart';
-import 'package:lock_in/data/models/user_settings_model.dart';
+import 'package:lock_in/presentation/screens/active_focus_screen.dart';
 import 'package:lock_in/widgets/focus_timer_widget.dart';
 import 'package:lock_in/widgets/lumo_mascot_widget.dart';
 import 'dart:math';
@@ -44,45 +45,88 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
     });
   }
 
-  void _showFocusModeModal(UserSettingsModel? settings) {
-    final user = ref.read(currentUserProvider).value;
-    if (user == null || settings == null) return;
-
-    // Example usage:
+  // Show focus mode modal and handle session creation
+  void _showFocusModeModal() {
     BottomSheetManager.show(
       context: context,
       child: FocusTimeBottomSheet(
-        initialDuration: settings.defaultDuration,
-        initialBreaks: settings.numberOfBreaks,
-        initialBlockHomeScreen: settings.blockPhoneHomeScreen,
-        initialStrictMode: settings.strictMode,
-        initialTimerMode: settings.timerMode,
-        onSave: (duration, breaks, blockHome, strictMode, timerMode) async {
-          // Update settings in database
-          final updatedSettings = settings.copyWith(
-            defaultDuration: duration,
-            numberOfBreaks: breaks,
-            blockPhoneHomeScreen: blockHome,
-            strictMode: strictMode,
-            timerMode: timerMode,
-          );
-
-          try {
-            await ref
-                .read(settingsRepositoryProvider)
-                .updateSettings(user.uid, updatedSettings);
-
-            // Force refresh the settings stream
-            ref.invalidate(userSettingsProvider(user.uid));
-          } catch (e) {
-            debugPrint('Error updating settings: $e');
-          }
+        onSave: () async {
+          // Start focus session and navigate to active screen
+          await _startFocusSession();
         },
       ),
     );
   }
 
-  @override
+  // Start focus session with current settings
+  Future<void> _startFocusSession() async {
+    try {
+      final user = ref.read(currentUserProvider).value;
+      if (user == null) return;
+
+      // Get current settings from the user's preferences
+      final settingsAsync = ref.read(userSettingsProvider(user.uid));
+      final settings = settingsAsync.value;
+      
+      if (settings == null) return;
+
+      // Get blocked content from the proper blocked content provider
+      final blockedContentAsync = ref.read(blockedContentProvider(user.uid));
+      final blockedContent = blockedContentAsync.value;
+      
+      // Get permanently blocked apps from blocked content provider
+      final allBlockedApps = blockedContent?.permanentlyBlockedApps ?? [];
+
+      // Get blocked websites from blocked content provider
+      final blockedWebsites = blockedContent?.blockedWebsites
+          .where((w) => w.isActive)
+          .map((w) => {
+                'url': w.url,
+                'name': w.name,
+                'isActive': w.isActive,
+              })
+          .toList() ?? [];
+
+      // Get short form blocks
+      final shortFormBlocks = blockedContent?.shortFormBlocks ?? {};
+      final shortFormBlocked = shortFormBlocks.values.any((block) => block.isBlocked);
+
+      // Start the focus session using the provider
+      await ref.read(focusSessionProvider.notifier).startSession(
+        plannedDuration: settings.defaultDuration,
+        sessionType: settings.timerMode,
+        blockedApps: allBlockedApps,
+        blockedWebsites: blockedWebsites,
+        shortFormBlocked: shortFormBlocked,
+        notificationsBlocked: true, // Default to blocking notifications
+      );
+
+      // Navigate to active focus screen
+      if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => ActiveFocusScreen(
+              sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
+              plannedDuration: settings.defaultDuration,
+              sessionType: settings.timerMode,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error starting focus session: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to start focus session: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  } 
+  
+   @override
   Widget build(BuildContext context) {
     final userAsync = ref.watch(currentUserProvider);
 
@@ -91,9 +135,6 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
         if (user == null) {
           return const Center(child: Text('Please login first'));
         }
-
-        // Watch user settings
-        final settingsAsync = ref.watch(userSettingsProvider(user.uid));
 
         return Stack(
           children: [
@@ -122,33 +163,9 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
 
                           const SizedBox(height: 100),
 
-                          // Focus Timer Widget - now with settings data
-                          settingsAsync.when(
-                            data: (settings) {
-                              return FocusTimerWidget(
-                                initialDefaultDuration:
-                                    settings?.defaultDuration ?? 25,
-                                initialTimerMode:
-                                    settings?.timerMode ?? "timer",
-                                onTap: () {
-                                  _showFocusModeModal(settings);
-                                },
-                              );
-                            },
-                            loading: () => FocusTimerWidget(
-                              initialDefaultDuration: 25,
-                              initialTimerMode: "timer",
-                              onTap: () {
-                                _showFocusModeModal(null);
-                              },
-                            ),
-                            error: (_, __) => FocusTimerWidget(
-                              initialDefaultDuration: 25,
-                              initialTimerMode: "timer",
-                              onTap: () {
-                                _showFocusModeModal(null);
-                              },
-                            ),
+                          // Focus Timer Widget - now handles its own settings
+                          FocusTimerWidget(
+                            onTap: _showFocusModeModal,
                           ),
 
                           const Spacer(),
@@ -167,13 +184,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
-                              onPressed: () {
-                                // Handle start focus mode
-                               final settings = settingsAsync.value;
-                               _showFocusModeModal(settings);
-
-
-                              },
+                              onPressed: _showFocusModeModal,
                               style: ElevatedButton.styleFrom(
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(100),

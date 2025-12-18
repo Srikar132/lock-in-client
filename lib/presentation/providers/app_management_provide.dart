@@ -20,9 +20,6 @@ final appIconProvider = FutureProvider.family<Uint8List?, String>((ref, packageN
   return await NativeService.getAppIcon(packageName);
 });
 
-// 2. State for Blocked Package Names (Set for O(1) lookups)
-final blockedAppsProvider = StateProvider<Set<String>>((ref) => {});
-
 // 3. Search Query State
 final appSearchQueryProvider = StateProvider<String>((ref) => '');
 

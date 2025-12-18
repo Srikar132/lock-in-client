@@ -57,6 +57,18 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+
+        <!-- ============================================ -->
+        <!-- OVERLAY ACTIVITY (Flutter Block Screens)    -->
+        <!-- ============================================ -->
+        <activity
+            android:name=".services.BlockOverlayActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity=".services.BlockOverlayActivity"
+            android:excludeFromRecents="true"
+            android:theme="@style/NormalTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize" />
         
         <!-- Accessibility Service for app blocking -->
         <service
@@ -70,6 +82,62 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
+
+        <!-- App Monitoring Service (Foreground) -->
+        <service
+            android:name=".services.AppMonitoringService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Focus mode app monitoring" />
+        </service>
+
+        <!-- Short Form Blocking Service -->
+        <service
+            android:name=".services.ShortFormBlockingService"
+            android:exported="false"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+        </service>
+
+        <!-- Notification Blocking Service -->
+        <service
+            android:name=".services.NotificationBlockingService"
+            android:exported="false"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Web Blocking VPN Service -->
+        <service
+            android:name=".services.WebBlockingVPNService"
+            android:exported="false"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
+
+        <!-- Usage Tracking Job Service -->
+        <service
+            android:name=".services.UsageTrackingJobService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <!-- Focus Action Receiver (Notification Buttons) -->
+        <receiver
+            android:name=".services.FocusActionReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+
+
 
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

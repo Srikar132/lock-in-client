@@ -7,6 +7,99 @@ import 'package:lock_in/data/models/installed_app_model.dart';
 /// to request and check various permissions needed for the app to function properly.
 class NativeService {
   static const _platform = MethodChannel('com.lockin.focus/native');
+  static const _eventChannel = EventChannel('com.lockin.focus/events');
+
+
+  // ============================================================================
+  // FOCUS SESSION MANAGEMENT
+  // ============================================================================
+
+  /// Start a new focus session
+  static Future<bool> startFocusSession({
+    required String sessionId,
+    required String userId,
+    required int plannedDuration,
+    required String sessionType,
+    required List<String> blockedApps,
+    List<Map<String, dynamic>>? blockedWebsites,
+    bool shortFormBlocked = false,
+    Map<String, dynamic>? shortFormBlocks,
+    bool notificationsBlocked = false,
+    Map<String, dynamic>? notificationBlocks,
+  }) async {
+    try {
+      final result = await _platform.invokeMethod('startFocusSession', {
+        'sessionId': sessionId,
+        'userId': userId,
+        'startTime': DateTime.now().millisecondsSinceEpoch,
+        'plannedDuration': plannedDuration,
+        'sessionType': sessionType,
+        'timerMode': 'focus',
+        'blockedApps': blockedApps,
+        'blockedWebsites': blockedWebsites ?? [],
+        'shortFormBlocked': shortFormBlocked,
+        'shortFormBlocks': shortFormBlocks ?? {},
+        'notificationsBlocked': notificationsBlocked,
+        'notificationBlocks': notificationBlocks ?? {},
+        'status': 'active',
+      });
+      return result as bool? ?? false;
+    } catch (e) {
+      debugPrint('Error starting focus session: $e');
+      return false;
+    }
+  }
+
+  /// Pause current focus session
+  static Future<bool> pauseFocusSession() async {
+    try {
+      final result = await _platform.invokeMethod('pauseFocusSession');
+      return result as bool? ?? false;
+    } catch (e) {
+      debugPrint('Error pausing focus session: $e');
+      return false;
+    }
+  }
+
+  /// Resume paused focus session
+  static Future<bool> resumeFocusSession() async {
+    try {
+      final result = await _platform.invokeMethod('resumeFocusSession');
+      return result as bool? ?? false;
+    } catch (e) {
+      debugPrint('Error resuming focus session: $e');
+      return false;
+    }
+  }
+
+  /// End current focus session
+  static Future<bool> endFocusSession() async {
+    try {
+      final result = await _platform.invokeMethod('endFocusSession');
+      return result as bool? ?? false;
+    } catch (e) {
+      debugPrint('Error ending focus session: $e');
+      return false;
+    }
+  }
+
+  /// Get current session status
+  static Future<Map<String, dynamic>?> getCurrentSessionStatus() async {
+    try {
+      final result = await _platform.invokeMethod('getCurrentSessionStatus');
+      return result != null ? Map<String, dynamic>.from(result) : null;
+    } catch (e) {
+      debugPrint('Error getting session status: $e');
+      return null;
+    }
+  }
+
+  /// Stream of focus session events from native
+  static Stream<Map<String, dynamic>> get focusEventStream {
+    return _eventChannel.receiveBroadcastStream().map((event) {
+      return Map<String, dynamic>.from(event as Map);
+    });
+  }
 
   /// Check if the app has usage stats permission.
   /// This permission is required to monitor app usage and identify distracting apps.
@@ -196,8 +289,178 @@ class NativeService {
     } catch (e) {
       debugPrint("NativeService Icon Error: $e");
       return null;
+    }
+  }
 
+  // ============================================================================
+  // PERSISTENT (ALWAYS-ON) BLOCKING
+  // ============================================================================
 
+  /// Set persistent app blocking (works even when no focus session is active)
+  static Future<bool> setPersistentAppBlocking({
+    required bool enabled,
+    List<String>? blockedApps,
+  }) async {
+    try {
+      await _platform.invokeMethod('setPersistentAppBlocking', {
+        'enabled': enabled,
+        'blockedApps': blockedApps,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('Error setting persistent app blocking: $e');
+      return false;
+    }
+  }
+
+  /// Check if persistent app blocking is enabled
+  static Future<bool> isPersistentAppBlockingEnabled() async {
+    try {
+      final result = await _platform.invokeMethod('isPersistentAppBlockingEnabled');
+      return result as bool? ?? false;
+    } catch (e) {
+      debugPrint('Error checking persistent app blocking: $e');
+      return false;
+    }
+  }
+
+  /// Get list of persistently blocked apps
+  static Future<List<String>> getPersistentBlockedApps() async {
+    try {
+      final result = await _platform.invokeMethod('getPersistentBlockedApps');
+      if (result is List) {
+        return result.cast<String>();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error getting persistent blocked apps: $e');
+      return [];
+    }
+  }
+
+  /// Set persistent website blocking
+  static Future<bool> setPersistentWebsiteBlocking({
+    required bool enabled,
+    List<Map<String, dynamic>>? blockedWebsites,
+  }) async {
+    try {
+      await _platform.invokeMethod('setPersistentWebsiteBlocking', {
+        'enabled': enabled,
+        'blockedWebsites': blockedWebsites,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('Error setting persistent website blocking: $e');
+      return false;
+    }
+  }
+
+  /// Check if persistent website blocking is enabled
+  static Future<bool> isPersistentWebsiteBlockingEnabled() async {
+    try {
+      final result = await _platform.invokeMethod('isPersistentWebsiteBlockingEnabled');
+      return result as bool? ?? false;
+    } catch (e) {
+      debugPrint('Error checking persistent website blocking: $e');
+      return false;
+    }
+  }
+
+  /// Get list of persistently blocked websites
+  static Future<List<Map<String, dynamic>>> getPersistentBlockedWebsites() async {
+    try {
+      final result = await _platform.invokeMethod('getPersistentBlockedWebsites');
+      if (result is List) {
+        return result.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error getting persistent blocked websites: $e');
+      return [];
+    }
+  }
+
+  /// Set persistent short-form content blocking
+  static Future<bool> setPersistentShortFormBlocking({
+    required bool enabled,
+    Map<String, dynamic>? shortFormBlocks,
+  }) async {
+    try {
+      await _platform.invokeMethod('setPersistentShortFormBlocking', {
+        'enabled': enabled,
+        'shortFormBlocks': shortFormBlocks,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('Error setting persistent short-form blocking: $e');
+      return false;
+    }
+  }
+
+  /// Check if persistent short-form blocking is enabled
+  static Future<bool> isPersistentShortFormBlockingEnabled() async {
+    try {
+      final result = await _platform.invokeMethod('isPersistentShortFormBlockingEnabled');
+      return result as bool? ?? false;
+    } catch (e) {
+      debugPrint('Error checking persistent short-form blocking: $e');
+      return false;
+    }
+  }
+
+  /// Get persistent short-form blocks
+  static Future<Map<String, dynamic>> getPersistentShortFormBlocks() async {
+    try {
+      final result = await _platform.invokeMethod('getPersistentShortFormBlocks');
+      if (result is Map) {
+        return Map<String, dynamic>.from(result);
+      }
+      return {};
+    } catch (e) {
+      debugPrint('Error getting persistent short-form blocks: $e');
+      return {};
+    }
+  }
+
+  /// Set persistent notification blocking
+  static Future<bool> setPersistentNotificationBlocking({
+    required bool enabled,
+    Map<String, dynamic>? notificationBlocks,
+  }) async {
+    try {
+      await _platform.invokeMethod('setPersistentNotificationBlocking', {
+        'enabled': enabled,
+        'notificationBlocks': notificationBlocks,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('Error setting persistent notification blocking: $e');
+      return false;
+    }
+  }
+
+  /// Check if persistent notification blocking is enabled
+  static Future<bool> isPersistentNotificationBlockingEnabled() async {
+    try {
+      final result = await _platform.invokeMethod('isPersistentNotificationBlockingEnabled');
+      return result as bool? ?? false;
+    } catch (e) {
+      debugPrint('Error checking persistent notification blocking: $e');
+      return false;
+    }
+  }
+
+  /// Get persistent notification blocks
+  static Future<Map<String, dynamic>> getPersistentNotificationBlocks() async {
+    try {
+      final result = await _platform.invokeMethod('getPersistentNotificationBlocks');
+      if (result is Map) {
+        return Map<String, dynamic>.from(result);
+      }
+      return {};
+    } catch (e) {
+      debugPrint('Error getting persistent notification blocks: $e');
+      return {};
     }
   }
 }

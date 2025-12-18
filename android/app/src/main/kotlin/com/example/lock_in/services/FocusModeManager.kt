@@ -1,6 +1,19 @@
 package com.lockin.focus
 
-import android.content.Context
+import andr        private const val KEY_PAUSED_TIME = "paused_time"
+        private const val KEY_IS_PAUSED = "is_paused"
+        
+        // Persistent blocking keys for each type
+        private const val KEY_PERSISTENT_APP_BLOCKING = "persistent_app_blocking"
+        private const val KEY_PERSISTENT_BLOCKED_APPS = "persistent_blocked_apps_json"
+        private const val KEY_PERSISTENT_WEBSITE_BLOCKING = "persistent_website_blocking"
+        private const val KEY_PERSISTENT_BLOCKED_WEBSITES = "persistent_blocked_websites_json"
+        private const val KEY_PERSISTENT_SHORT_FORM_BLOCKING = "persistent_short_form_blocking"
+        private const val KEY_PERSISTENT_SHORT_FORM_BLOCKS = "persistent_short_form_blocks_json"
+        private const val KEY_PERSISTENT_NOTIFICATION_BLOCKING = "persistent_notification_blocking"
+        private const val KEY_PERSISTENT_NOTIFICATION_BLOCKS = "persistent_notification_blocks_json"
+
+        @Volatilentent.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Build
@@ -39,6 +52,8 @@ class FocusModeManager(private val context: Context) {
         private const val KEY_SESSION_START_TIME = "session_start_time"
         private const val KEY_PAUSED_TIME = "paused_time"
         private const val KEY_IS_PAUSED = "is_paused"
+    private const val KEY_PERSISTENT_BLOCKING = "persistent_blocking"
+    private const val KEY_PERSISTENT_BLOCKED_APPS = "persistent_blocked_apps_json"
 
         @Volatile
         private var INSTANCE: FocusModeManager? = null
@@ -667,6 +682,214 @@ class FocusModeManager(private val context: Context) {
     fun getCurrentSession(): FocusSession? = currentSession
     fun getSessionStartTime(): Long = sessionStartTime
     fun isPaused(): Boolean = isPaused
+
+    // ====================
+    // PERSISTENT (ALWAYS-ON) BLOCKING CONTROLS
+    // ====================
+
+    // App blocking
+    fun setPersistentAppBlocking(enabled: Boolean, blockedApps: List<String>? = null) {
+        try {
+            prefs.edit().apply {
+                putBoolean(KEY_PERSISTENT_APP_BLOCKING, enabled)
+                if (blockedApps != null) {
+                    putString(KEY_PERSISTENT_BLOCKED_APPS, org.json.JSONArray(blockedApps).toString())
+                }
+                apply()
+            }
+            updateMonitoringService()
+            Log.d(TAG, "Persistent app blocking ${if (enabled) "enabled" else "disabled"}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting persistent app blocking", e)
+        }
+    }
+
+    fun isPersistentAppBlockingEnabled(): Boolean = prefs.getBoolean(KEY_PERSISTENT_APP_BLOCKING, false)
+
+    fun getPersistentBlockedApps(): List<String> {
+        try {
+            val json = prefs.getString(KEY_PERSISTENT_BLOCKED_APPS, "[]") ?: "[]"
+            val arr = org.json.JSONArray(json)
+            val list = mutableListOf<String>()
+            for (i in 0 until arr.length()) list.add(arr.getString(i))
+            return list
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading persistent blocked apps", e)
+            return emptyList()
+        }
+    }
+
+    // Website blocking
+    fun setPersistentWebsiteBlocking(enabled: Boolean, blockedWebsites: List<Map<String, Any>>? = null) {
+        try {
+            prefs.edit().apply {
+                putBoolean(KEY_PERSISTENT_WEBSITE_BLOCKING, enabled)
+                if (blockedWebsites != null) {
+                    val jsonArray = org.json.JSONArray()
+                    blockedWebsites.forEach { website ->
+                        jsonArray.put(org.json.JSONObject(website))
+                    }
+                    putString(KEY_PERSISTENT_BLOCKED_WEBSITES, jsonArray.toString())
+                }
+                apply()
+            }
+            updateWebBlocking()
+            Log.d(TAG, "Persistent website blocking ${if (enabled) "enabled" else "disabled"}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting persistent website blocking", e)
+        }
+    }
+
+    fun isPersistentWebsiteBlockingEnabled(): Boolean = prefs.getBoolean(KEY_PERSISTENT_WEBSITE_BLOCKING, false)
+
+    fun getPersistentBlockedWebsites(): List<Map<String, Any>> {
+        try {
+            val json = prefs.getString(KEY_PERSISTENT_BLOCKED_WEBSITES, "[]") ?: "[]"
+            val arr = org.json.JSONArray(json)
+            val list = mutableListOf<Map<String, Any>>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                list.add(obj.toMap())
+            }
+            return list
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading persistent blocked websites", e)
+            return emptyList()
+        }
+    }
+
+    // Short-form content blocking
+    fun setPersistentShortFormBlocking(enabled: Boolean, shortFormBlocks: Map<String, Any>? = null) {
+        try {
+            prefs.edit().apply {
+                putBoolean(KEY_PERSISTENT_SHORT_FORM_BLOCKING, enabled)
+                if (shortFormBlocks != null) {
+                    putString(KEY_PERSISTENT_SHORT_FORM_BLOCKS, org.json.JSONObject(shortFormBlocks).toString())
+                }
+                apply()
+            }
+            updateShortFormBlocking()
+            Log.d(TAG, "Persistent short-form blocking ${if (enabled) "enabled" else "disabled"}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting persistent short-form blocking", e)
+        }
+    }
+
+    fun isPersistentShortFormBlockingEnabled(): Boolean = prefs.getBoolean(KEY_PERSISTENT_SHORT_FORM_BLOCKING, false)
+
+    fun getPersistentShortFormBlocks(): Map<String, Any> {
+        try {
+            val json = prefs.getString(KEY_PERSISTENT_SHORT_FORM_BLOCKS, "{}") ?: "{}"
+            return org.json.JSONObject(json).toMap()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading persistent short-form blocks", e)
+            return emptyMap()
+        }
+    }
+
+    // Notification blocking
+    fun setPersistentNotificationBlocking(enabled: Boolean, notificationBlocks: Map<String, Any>? = null) {
+        try {
+            prefs.edit().apply {
+                putBoolean(KEY_PERSISTENT_NOTIFICATION_BLOCKING, enabled)
+                if (notificationBlocks != null) {
+                    putString(KEY_PERSISTENT_NOTIFICATION_BLOCKS, org.json.JSONObject(notificationBlocks).toString())
+                }
+                apply()
+            }
+            updateNotificationBlocking()
+            Log.d(TAG, "Persistent notification blocking ${if (enabled) "enabled" else "disabled"}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting persistent notification blocking", e)
+        }
+    }
+
+    fun isPersistentNotificationBlockingEnabled(): Boolean = prefs.getBoolean(KEY_PERSISTENT_NOTIFICATION_BLOCKING, false)
+
+    fun getPersistentNotificationBlocks(): Map<String, Any> {
+        try {
+            val json = prefs.getString(KEY_PERSISTENT_NOTIFICATION_BLOCKS, "{}") ?: "{}"
+            return org.json.JSONObject(json).toMap()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading persistent notification blocks", e)
+            return emptyMap()
+        }
+    }
+
+    // Helper methods to update services
+    private fun updateMonitoringService() {
+        try {
+            if (isPersistentAppBlockingEnabled() || isSessionActive) {
+                val intent = Intent(context, com.example.lock_in.services.AppMonitoringService::class.java).apply {
+                    action = com.example.lock_in.services.AppMonitoringService.ACTION_START_MONITORING
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } else {
+                val intent = Intent(context, com.example.lock_in.services.AppMonitoringService::class.java).apply {
+                    action = com.example.lock_in.services.AppMonitoringService.ACTION_STOP_MONITORING
+                }
+                context.stopService(intent)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating monitoring service", e)
+        }
+    }
+
+    private fun updateWebBlocking() {
+        try {
+            if (isPersistentWebsiteBlockingEnabled()) {
+                val websites = getPersistentBlockedWebsites()
+                WebBlockingVPNService.updateBlocks(context, websites)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    WebBlockingVPNService.startVPN(context, websites)
+                }
+            } else {
+                WebBlockingVPNService.stopVPN(context)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating web blocking", e)
+        }
+    }
+
+    private fun updateShortFormBlocking() {
+        try {
+            if (isPersistentShortFormBlockingEnabled()) {
+                val blocks = getPersistentShortFormBlocks()
+                ShortFormBlockingService.updateBlocks(context, blocks)
+            } else {
+                ShortFormBlockingService.updateBlocks(context, emptyMap())
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating short-form blocking", e)
+        }
+    }
+
+    private fun updateNotificationBlocking() {
+        try {
+            if (isPersistentNotificationBlockingEnabled()) {
+                val blocks = getPersistentNotificationBlocks()
+                NotificationBlockingService.updateBlocks(context, blocks)
+            } else {
+                NotificationBlockingService.updateBlocks(context, emptyMap())
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating notification blocking", e)
+        }
+    }
+
+    /** Returns true if any blocking mode should be enforced: active session or any persistent mode */
+    fun isBlockingActive(): Boolean = isSessionActive || 
+        isPersistentAppBlockingEnabled() || 
+        isPersistentWebsiteBlockingEnabled() || 
+        isPersistentShortFormBlockingEnabled() || 
+        isPersistentNotificationBlockingEnabled()
+
+    /** Returns true if persistent app blocking is enabled (used by AppMonitoringService) */
+    fun isPersistentBlockingEnabled(): Boolean = isPersistentAppBlockingEnabled()
 
     // Cleanup method
     fun cleanup() {
