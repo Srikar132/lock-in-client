@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lock_in/core/theme/app_theme.dart';
 import 'package:lock_in/presentation/screens/splash_screen.dart';
+import 'package:lock_in/services/focus_session_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,6 +34,9 @@ void main() async {
     persistenceEnabled: true,
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
+
+  // Initialize Focus Session Service
+  FocusSessionService.initialize();
 
   // Note: Removed Hive initialization - Firebase handles all caching now
   // await HiveService.init(); // Commented out since we're using Firebase-only approach

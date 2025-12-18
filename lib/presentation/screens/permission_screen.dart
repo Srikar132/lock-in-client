@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:lock_in/presentation/providers/permission_provider.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
+import 'package:lock_in/presentation/screens/splash_screen.dart';
 import 'package:lock_in/widgets/permission_instruction_dialog.dart';
 import 'package:lock_in/models/model_manager.dart';
 
@@ -68,11 +69,11 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
             await ref
                 .read(permissionProvider.notifier)
                 .completePermissions(user.uid);
-            
+
             // Navigate to SplashScreen after successful completion
             if (mounted) {
-              Navigator.of(context).pushNamedAndRemoveUntil(
-                '/',
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (context) => const SplashScreen()),
                 (route) => false,
               );
             }
@@ -215,11 +216,13 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
                         await ref
                             .read(permissionProvider.notifier)
                             .completePermissions(user.uid);
-                        
+
                         // Navigate to SplashScreen after successful completion
                         if (mounted) {
-                          Navigator.of(context).pushNamedAndRemoveUntil(
-                            '/',
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(
+                              builder: (context) => const SplashScreen(),
+                            ),
                             (route) => false,
                           );
                         }
@@ -329,8 +332,7 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
       },
       {
         'title': 'Notification permission',
-        'description':
-            'Allow the app to send you notifications.',
+        'description': 'Allow the app to send you notifications.',
         'granted': permissionState.notificationPermission,
         'onTap': () async {
           await permissionNotifier.requestNotificationPermission();

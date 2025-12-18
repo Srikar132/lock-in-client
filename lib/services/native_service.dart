@@ -144,15 +144,15 @@ class NativeService {
   /// Returns a detailed string with debugging information about accessibility service status.
   static Future<String> debugAccessibilityPermission() async {
     try {
-      final result = await _platform.invokeMethod('debugAccessibilityPermission');
+      final result = await _platform.invokeMethod(
+        'debugAccessibilityPermission',
+      );
       return result as String? ?? 'No debug info available';
     } catch (e) {
       debugPrint('Error getting accessibility debug info: $e');
       return 'Error getting debug info: $e';
     }
   }
-
-
 
   /// Get all installed apps on the device.
   /// Returns a list of [InstalledApp] objects containing app information.
@@ -170,7 +170,9 @@ class NativeService {
       final List<dynamic> appsList = result as List<dynamic>;
 
       return appsList.map((app) {
-        final Map<String, dynamic> appMap = Map<String, dynamic>.from(app as Map);
+        final Map<String, dynamic> appMap = Map<String, dynamic>.from(
+          app as Map,
+        );
         return InstalledApp.fromMap(appMap);
       }).toList();
     } catch (e) {
@@ -179,6 +181,8 @@ class NativeService {
     }
   }
 
+  /// Get the app icon for the specified package name as bytes.
+  /// Returns null if the icon cannot be retrieved.
   static Future<Uint8List?> getAppIcon(String packageName) async {
     try {
       final result = await _platform.invokeMethod('getAppIcon', {
@@ -188,7 +192,6 @@ class NativeService {
       if (result == null) return null;
 
       return result as Uint8List;
-
     } on PlatformException catch (e) {
       // It's common for some system apps to fail icon retrieval, just log it lightly
       debugPrint("NativeService Icon Error ($packageName): '${e.message}'");
@@ -196,6 +199,42 @@ class NativeService {
     } catch (e) {
       debugPrint("NativeService Icon Error: $e");
       return null;
+    }
+  }
+
+  /// Check the current battery optimization status.
+  /// Returns a map with optimization status and recommendation message.
+  static Future<Map<String, dynamic>> checkBatteryOptimizationStatus() async {
+    try {
+      final result = await _platform.invokeMethod(
+        'checkBatteryOptimizationStatus',
+      );
+      return Map<String, dynamic>.from(result as Map);
+    } catch (e) {
+      debugPrint('Error checking battery optimization status: $e');
+      return {
+        'isIgnoringBatteryOptimizations': false,
+        'shouldRequest': false,
+        'message': 'Unable to check battery optimization status',
+      };
+    }
+  }
+
+  /// Request battery optimization exemption for the app.
+  /// This helps ensure the accessibility service continues running in the background.
+  static Future<Map<String, dynamic>>
+  requestBatteryOptimizationExemption() async {
+    try {
+      final result = await _platform.invokeMethod(
+        'requestBatteryOptimizationExemption',
+      );
+      return Map<String, dynamic>.from(result as Map);
+    } catch (e) {
+      debugPrint('Error requesting battery optimization exemption: $e');
+      return {
+        'granted': false,
+        'message': 'Error requesting battery optimization exemption: $e',
+      };
     }
   }
 }

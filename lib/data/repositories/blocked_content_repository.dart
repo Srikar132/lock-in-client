@@ -29,13 +29,58 @@ class BlockedContentRepository {
 
   // Get blocked content as stream for real-time updates
   Stream<BlockedContentModel> getBlockedContentStream(String userId) {
-    return _getBlockedContentDoc(userId)
-        .snapshots(includeMetadataChanges: true)
-        .map(
-          (doc) => doc.exists
-              ? BlockedContentModel.fromFirestore(doc)
-              : BlockedContentModel(),
-        );
+    return _getBlockedContentDoc(
+      userId,
+    ).snapshots(includeMetadataChanges: true).map((doc) {
+      debugPrint('📡 Firestore stream update for user: $userId');
+      debugPrint('   - Document exists: ${doc.exists}');
+
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>?;
+        debugPrint('   - Has data: ${data != null}');
+
+        if (data != null) {
+          // Debug appLimits
+          if (data.containsKey('appLimits')) {
+            final appLimits = data['appLimits'] as Map<String, dynamic>?;
+            debugPrint('   - App limits count: ${appLimits?.length ?? 0}');
+            debugPrint('   - App limits keys: ${appLimits?.keys.toList()}');
+          } else {
+            debugPrint('   - No appLimits field in document');
+          }
+
+          // Debug shortFormBlocks
+          if (data.containsKey('shortFormBlocks')) {
+            final shortFormBlocks =
+                data['shortFormBlocks'] as Map<String, dynamic>?;
+            debugPrint(
+              '   - Short form blocks count: ${shortFormBlocks?.length ?? 0}',
+            );
+            debugPrint(
+              '   - Short form blocks keys: ${shortFormBlocks?.keys.toList()}',
+            );
+            if (shortFormBlocks != null) {
+              shortFormBlocks.forEach((key, value) {
+                final blockData = value as Map<String, dynamic>;
+                debugPrint(
+                  '     * $key: ${blockData['platform']}_${blockData['feature']} = ${blockData['isBlocked']}',
+                );
+              });
+            }
+          } else {
+            debugPrint('   - ❌ No shortFormBlocks field in document');
+          }
+
+          // Debug all fields
+          debugPrint('   - All document fields: ${data.keys.toList()}');
+        }
+
+        return BlockedContentModel.fromFirestore(doc);
+      }
+
+      debugPrint('   - Returning empty model (doc does not exist)');
+      return BlockedContentModel();
+    });
   }
 
   // Set or update blocked content
@@ -69,52 +114,88 @@ class BlockedContentRepository {
     }
   }
 
-  // === PERMANENTLY BLOCKED APPS ===
+  // === APP LIMITS ===
 
-  // Add permanently blocked app
-  Future<void> addPermanentlyBlockedApp(
-    String userId,
-    String packageName,
-  ) async {
+  // Add or update app limit
+  Future<void> setAppLimit(String userId, AppLimit appLimit) async {
     try {
-      await _getBlockedContentDoc(userId).update({
-        'permanentlyBlockedApps': FieldValue.arrayUnion([packageName]),
+      await _getBlockedContentDoc(userId).set({
+        'appLimits.${appLimit.packageName}': appLimit.toMap(),
         'lastUpdated': Timestamp.fromDate(DateTime.now()),
-      });
+      }, SetOptions(merge: true));
     } catch (e) {
-      debugPrint('Error adding permanently blocked app: $e');
+      debugPrint('Error setting app limit: $e');
       rethrow;
     }
   }
 
-  // Remove permanently blocked app
-  Future<void> removePermanentlyBlockedApp(
-    String userId,
-    String packageName,
-  ) async {
+  // Remove app limit
+  Future<void> removeAppLimit(String userId, String packageName) async {
     try {
       await _getBlockedContentDoc(userId).update({
-        'permanentlyBlockedApps': FieldValue.arrayRemove([packageName]),
+        'appLimits.$packageName': FieldValue.delete(),
         'lastUpdated': Timestamp.fromDate(DateTime.now()),
       });
     } catch (e) {
-      debugPrint('Error removing permanently blocked app: $e');
+      debugPrint('Error removing app limit: $e');
       rethrow;
     }
   }
 
-  // Set multiple permanently blocked apps
-  Future<void> setPermanentlyBlockedApps(
+  // Update app usage time
+  Future<void> updateAppUsage(
     String userId,
-    List<String> packageNames,
+    String packageName,
+    int usedMinutesToday,
   ) async {
     try {
       await _getBlockedContentDoc(userId).update({
-        'permanentlyBlockedApps': packageNames,
+        'appLimits.$packageName.usedMinutesToday': usedMinutesToday,
         'lastUpdated': Timestamp.fromDate(DateTime.now()),
       });
     } catch (e) {
-      debugPrint('Error setting permanently blocked apps: $e');
+      debugPrint('Error updating app usage: $e');
+      rethrow;
+    }
+  }
+
+  // Reset all app usage times (call this daily at midnight)
+  Future<void> resetDailyUsage(String userId) async {
+    try {
+      final currentData = await getBlockedContent(userId);
+      final appLimits = currentData?.appLimits ?? {};
+
+      // Reset usage for each app
+      final updates = <String, dynamic>{
+        'lastUpdated': Timestamp.fromDate(DateTime.now()),
+      };
+
+      for (final packageName in appLimits.keys) {
+        updates['appLimits.$packageName.usedMinutesToday'] = 0;
+      }
+
+      if (updates.length > 1) {
+        await _getBlockedContentDoc(userId).update(updates);
+      }
+    } catch (e) {
+      debugPrint('Error resetting daily usage: $e');
+      rethrow;
+    }
+  }
+
+  // Toggle app limit active status
+  Future<void> toggleAppLimitStatus(
+    String userId,
+    String packageName,
+    bool isActive,
+  ) async {
+    try {
+      await _getBlockedContentDoc(userId).update({
+        'appLimits.$packageName.isActive': isActive,
+        'lastUpdated': Timestamp.fromDate(DateTime.now()),
+      });
+    } catch (e) {
+      debugPrint('Error toggling app limit status: $e');
       rethrow;
     }
   }
@@ -224,14 +305,23 @@ class BlockedContentRepository {
   // Add or update short form block
   Future<void> setShortFormBlock(String userId, ShortFormBlock block) async {
     try {
-      final key = '${block.platform}_${block.feature}';
+      final key = '${block.platform}_${block.feature}'.toLowerCase();
 
-      await _getBlockedContentDoc(userId).update({
+      debugPrint('🔄 Setting short form block:');
+      debugPrint('   - Key: $key');
+      debugPrint('   - Platform: ${block.platform}');
+      debugPrint('   - Feature: ${block.feature}');
+      debugPrint('   - Is Blocked: ${block.isBlocked}');
+
+      // Use set with merge to create document if it doesn't exist
+      await _getBlockedContentDoc(userId).set({
         'shortFormBlocks.$key': block.toMap(),
         'lastUpdated': Timestamp.fromDate(DateTime.now()),
-      });
+      }, SetOptions(merge: true));
+
+      debugPrint('✅ Short form block saved to Firebase');
     } catch (e) {
-      debugPrint('Error setting short form block: $e');
+      debugPrint('❌ Error setting short form block: $e');
       rethrow;
     }
   }
@@ -243,7 +333,7 @@ class BlockedContentRepository {
     String feature,
   ) async {
     try {
-      final key = '${platform}_$feature';
+      final key = '${platform}_$feature'.toLowerCase();
 
       await _getBlockedContentDoc(userId).update({
         'shortFormBlocks.$key': FieldValue.delete(),
@@ -297,13 +387,13 @@ class BlockedContentRepository {
 
   // === UTILITY METHODS ===
 
-  // Check if app is blocked
-  Future<bool> isAppBlocked(String userId, String packageName) async {
+  // Check if app limit is exceeded
+  Future<bool> isAppLimitExceeded(String userId, String packageName) async {
     try {
       final blockedContent = await getBlockedContent(userId);
-      return blockedContent?.isAppBlocked(packageName) ?? false;
+      return blockedContent?.isAppLimitExceeded(packageName) ?? false;
     } catch (e) {
-      debugPrint('Error checking if app is blocked: $e');
+      debugPrint('Error checking if app limit exceeded: $e');
       return false;
     }
   }

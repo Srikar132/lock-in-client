@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lock_in/presentation/providers/app_management_provide.dart';
 
 class FocusTimerWidget extends ConsumerStatefulWidget {
   final String initialTimerMode;
@@ -21,7 +22,6 @@ class _FocusTimerWidgetState extends ConsumerState<FocusTimerWidget> {
   // Timer state
   late int _totalSeconds;
   late int _currentSeconds;
-  int _blockedAppsCount = 120;
 
   @override
   void initState() {
@@ -53,6 +53,7 @@ class _FocusTimerWidgetState extends ConsumerState<FocusTimerWidget> {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final timerSize = screenWidth * 0.6; // 60% of screen width
+    final blockedApps = ref.watch(blockedAppsProvider);
 
     return GestureDetector(
       onTap: widget.onTap,
@@ -111,41 +112,56 @@ class _FocusTimerWidgetState extends ConsumerState<FocusTimerWidget> {
 
                   SizedBox(height: timerSize * 0.04),
 
-                  // Blocked apps indicator
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.2),
-                        width: 1,
+                  GestureDetector(
+                    onTap: widget.onTap,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
                       ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // App icons (mock)
-                        _buildAppIcon(Colors.red, 'Y'),
-
-                        _buildAppIcon(Colors.green, 'W'),
-
-                        _buildAppIcon(Colors.blue, 'F'),
-
-                        const SizedBox(width: 8),
-
-                        Text(
-                          '$_blockedAppsCount apps blocked',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                          width: 1,
                         ),
-                      ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (blockedApps.isEmpty) ...[
+                            Icon(
+                              Icons.add_circle_outline,
+                              color: Colors.white.withOpacity(0.7),
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Tap to select apps',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.8),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ] else ...[
+                            // Show first 3 app icons
+                            _buildAppIcon(Colors.red, 'Y'),
+                            _buildAppIcon(Colors.green, 'W'),
+                            _buildAppIcon(Colors.blue, 'F'),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${blockedApps.length} apps blocked',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.8),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   ),
 
@@ -153,7 +169,7 @@ class _FocusTimerWidgetState extends ConsumerState<FocusTimerWidget> {
 
                   // Edit button
                   GestureDetector(
-                    onTap: () {},
+                    onTap: widget.onTap,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,

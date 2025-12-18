@@ -6,9 +6,15 @@ import 'package:lock_in/models/focus_time_bottom_model.dart';
 import 'package:lock_in/models/model_manager.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
 import 'package:lock_in/presentation/providers/settings_provider.dart';
+import 'package:lock_in/presentation/providers/permission_provider.dart';
+import 'package:lock_in/presentation/providers/focus_session_provider.dart';
+import 'package:lock_in/presentation/providers/app_management_provide.dart';
+import 'package:lock_in/presentation/screens/focus_session_active_screen.dart';
+import 'package:lock_in/presentation/screens/permission_screen.dart';
 import 'package:lock_in/data/models/user_settings_model.dart';
 import 'package:lock_in/widgets/focus_timer_widget.dart';
 import 'package:lock_in/widgets/lumo_mascot_widget.dart';
+import 'package:lock_in/presentation/screens/profile_screen.dart';
 import 'dart:math';
 
 class FocusScreen extends ConsumerStatefulWidget {
@@ -44,11 +50,33 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
     });
   }
 
-  void _showFocusModeModal(UserSettingsModel? settings) {
+  void _showFocusModeModal(UserSettingsModel? settings) async {
     final user = ref.read(currentUserProvider).value;
     if (user == null || settings == null) return;
 
-    // Example usage:
+    // Check if session is already active
+    final focusSession = ref.read(activeFocusSessionProvider);
+    if (focusSession.isActive) {
+      // Navigate to active session screen
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => const FocusSessionActiveScreen(),
+        ),
+      );
+      return;
+    }
+
+    // Check permissions first
+    final permissionState = ref.read(permissionProvider);
+    if (!permissionState.usagePermission ||
+        !permissionState.overlayPermission ||
+        !permissionState.accessibilityPermission) {
+      _showPermissionsRequiredDialog();
+      return;
+    }
+
+    // Show focus mode configuration sheet (no app validation here)
+    // Users can select apps inside the sheet
     BottomSheetManager.show(
       context: context,
       child: FocusTimeBottomSheet(
@@ -58,6 +86,18 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
         initialStrictMode: settings.strictMode,
         initialTimerMode: settings.timerMode,
         onSave: (duration, breaks, blockHome, strictMode, timerMode) async {
+          // Validate apps are selected before starting
+          final blockedApps = ref.read(blockedAppsProvider);
+          if (blockedApps.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please select at least one app to block'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            return;
+          }
+
           // Update settings in database
           final updatedSettings = settings.copyWith(
             defaultDuration: duration,
@@ -74,6 +114,13 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
 
             // Force refresh the settings stream
             ref.invalidate(userSettingsProvider(user.uid));
+
+            // Start focus session
+            await _startFocusSession(
+              duration: duration,
+              strictMode: strictMode,
+              blockHome: blockHome,
+            );
           } catch (e) {
             debugPrint('Error updating settings: $e');
           }
@@ -82,9 +129,94 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
     );
   }
 
+  Future<void> _startFocusSession({
+    required int duration,
+    required bool strictMode,
+    required bool blockHome,
+  }) async {
+    final user = ref.read(currentUserProvider).value;
+    if (user == null) return;
+
+    final blockedApps = ref.read(blockedAppsProvider);
+
+    try {
+      // Start the focus session
+      final success = await ref
+          .read(activeFocusSessionProvider.notifier)
+          .startSession(
+            sessionId: 'session_${DateTime.now().millisecondsSinceEpoch}',
+            blockedApps: blockedApps.toList(),
+            durationMinutes: duration,
+            strictMode: strictMode,
+            blockHomeScreen: blockHome,
+          );
+
+      if (success && mounted) {
+        // Navigate to active session screen
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const FocusSessionActiveScreen(),
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to start focus session'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error starting focus session: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  void _showPermissionsRequiredDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Permissions Required'),
+        content: const Text(
+          'To use Focus Mode, you need to grant the following permissions:\n\n'
+          '• Usage Stats - To monitor app usage\n'
+          '• Display Over Other Apps - To show blocking overlays\n'
+          '• Accessibility Service - For advanced blocking',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const PermissionScreen(),
+                ),
+              );
+            },
+            child: const Text('Grant Permissions'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final userAsync = ref.watch(currentUserProvider);
+    final focusSession = ref.watch(activeFocusSessionProvider);
+
+    // If focus session is active, show active screen
+    if (focusSession.isActive) {
+      return const FocusSessionActiveScreen();
+    }
 
     return userAsync.when(
       data: (user) {
@@ -169,10 +301,8 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                             child: ElevatedButton(
                               onPressed: () {
                                 // Handle start focus mode
-                               final settings = settingsAsync.value;
-                               _showFocusModeModal(settings);
-
-
+                                final settings = settingsAsync.value;
+                                _showFocusModeModal(settings);
                               },
                               style: ElevatedButton.styleFrom(
                                 shape: RoundedRectangleBorder(
@@ -262,7 +392,9 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
         // User Profile Avatar
         GestureDetector(
           onTap: () {
-            // Navigate to profile or open drawer
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => const ProfileScreen()),
+            );
           },
           child: Container(
             width: 32,

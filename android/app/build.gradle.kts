@@ -27,8 +27,8 @@ android {
         applicationId = "com.example.lock_in"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        minSdk = 26  // Required for VPN and modern Android features
+        targetSdk = 34  // Android 14 compatibility
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -44,4 +44,13 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Kotlin Coroutines for async operations
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    
+    // WorkManager for background tasks
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
 }
