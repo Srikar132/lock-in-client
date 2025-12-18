@@ -12,7 +12,8 @@ import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import com.example.lock_in.R
-import com.lockin.focus.FocusModeManager
+import com.example.lock_in.services.focus.FocusSessionManager
+import com.example.lock_in.services.overlay.OverlayLauncher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -112,7 +113,8 @@ class WebBlockingVPNService : VpnService() {
     private var vpnInterface: ParcelFileDescriptor? = null
     private var isRunning = false
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private lateinit var focusManager: FocusModeManager
+    private lateinit var sessionManager: FocusSessionManager
+    private lateinit var overlayLauncher: OverlayLauncher
 
     // Blocking configuration
     private val blockedDomains = ConcurrentHashMap<String, BlockedWebsite>()
@@ -126,7 +128,8 @@ class WebBlockingVPNService : VpnService() {
         super.onCreate()
         Log.d(TAG, "WebBlockingVPNService created")
 
-        focusManager = FocusModeManager. getInstance(this)
+        sessionManager = FocusSessionManager.getInstance(this)
+        overlayLauncher = OverlayLauncher.getInstance(this)
         createNotificationChannel()
     }
 
@@ -565,16 +568,15 @@ class WebBlockingVPNService : VpnService() {
 
     private fun showWebsiteBlockedOverlay(domain: String) {
         try {
-            val focusTimeMinutes = getFocusTimeMinutes()
-
-            FlutterOverlayManager.showBlockedWebsiteOverlay(
-                context = this,
-                domain = domain,
-                fullUrl = "https://$domain",
-                focusTimeMinutes = focusTimeMinutes,
-                sessionType = focusManager.getCurrentSession()?.sessionType ?: "timer",
-                sessionId = focusManager.getCurrentSession()?.sessionId ?: "",
-                blockReason = "focus_session"
+            val reason = if (sessionManager.isSessionActive()) {
+                "This website is blocked during your focus session"
+            } else {
+                "This website is blocked"
+            }
+            
+            overlayLauncher.showWebsiteBlockOverlay(
+                url = "https://$domain",
+                reason = reason
             )
         } catch (e: Exception) {
             Log.e(TAG, "Error showing website blocked overlay", e)
@@ -585,13 +587,15 @@ class WebBlockingVPNService : VpnService() {
         try {
             totalBlockedRequests++
 
-            // Report to focus manager
-            focusManager.reportInterruption(
-                packageName = "web.browser",
-                appName = "Website: $domain",
-                type = "website_blocked",
-                wasBlocked = true
-            )
+            // Report to session manager if session is active
+            if (sessionManager.isSessionActive()) {
+                sessionManager.recordInterruption(
+                    packageName = "web.browser",
+                    appName = "Website: $domain",
+                    type = "website_blocked",
+                    wasBlocked = true
+                )
+            }
 
             // Update notification
             updateNotification()
@@ -685,8 +689,8 @@ class WebBlockingVPNService : VpnService() {
 
     private fun getFocusTimeMinutes(): Int {
         return try {
-            val sessionStatus = focusManager. getCurrentSessionStatus()
-            (sessionStatus?. get("elapsedMinutes") as? Int) ?: 0
+            val sessionStatus = sessionManager.getCurrentSessionStatus()
+            (sessionStatus?.get("elapsedMinutes") as? Int) ?: 0
         } catch (e: Exception) {
             0
         }
@@ -696,7 +700,7 @@ class WebBlockingVPNService : VpnService() {
         scope.launch {
             try {
                 delay(2000) // Wait 2 seconds
-                if (focusManager.isSessionActive()) {
+                if (sessionManager.isSessionActive()) {
                     Log.d(TAG, "Restarting VPN service")
                     stopVPN()
                     delay(1000)

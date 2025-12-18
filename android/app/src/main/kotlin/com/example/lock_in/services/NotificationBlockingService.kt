@@ -12,7 +12,7 @@ import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
-import com.lockin.focus.FocusModeManager
+import com.example.lock_in.services.focus.FocusSessionManager
 import kotlinx.coroutines.*
 import org.json.JSONArray
 import org.json.JSONObject
@@ -72,7 +72,7 @@ class NotificationBlockingService : NotificationListenerService() {
     }
 
     // Core components
-    private lateinit var focusManager: FocusModeManager
+    private lateinit var sessionManager: FocusSessionManager
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     // Blocking configuration
@@ -101,7 +101,7 @@ class NotificationBlockingService : NotificationListenerService() {
 
         try {
             // Initialize components
-            focusManager = FocusModeManager.getInstance(this)
+            sessionManager = FocusSessionManager.getInstance(this)
 
             // Load configuration
             loadBlockConfiguration()
@@ -132,7 +132,8 @@ class NotificationBlockingService : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        if (!focusManager.isSessionActive()) return
+        // Only block if session is active OR if persistent blocking is enabled
+        if (!sessionManager.isSessionActive()) return
 
         try {
             val packageName = sbn.packageName
@@ -235,13 +236,15 @@ class NotificationBlockingService : NotificationListenerService() {
             // Log the blocked notification
             logBlockedNotification(sbn)
 
-            // Report interruption to focus manager
-            focusManager.reportInterruption(
-                packageName = packageName,
-                appName = appName,
-                type = "notification_blocked",
-                wasBlocked = true
-            )
+            // Report interruption to session manager if session is active
+            if (sessionManager.isSessionActive()) {
+                sessionManager.recordInterruption(
+                    packageName = packageName,
+                    appName = appName,
+                    type = "notification_blocked",
+                    wasBlocked = true
+                )
+            }
 
             Log. d(TAG, "Blocked notification from $appName (total today: $blockedNotificationsToday)")
 
@@ -457,7 +460,7 @@ class NotificationBlockingService : NotificationListenerService() {
                     "title" to title,
                     "text" to text,
                     "timestamp" to System.currentTimeMillis(),
-                    "session_id" to (focusManager.getCurrentSession()?.sessionId ?: "")
+                    "session_id" to (sessionManager.getCurrentSession()?.sessionId ?: "")
                 )
 
                 // Save to local storage for analytics
