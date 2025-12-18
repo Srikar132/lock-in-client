@@ -10,12 +10,11 @@ import android.util.Log
 import com.example.lock_in.models.FocusSession
 import com.example.lock_in.models.Interruption
 import com.example.lock_in.services.AppMonitoringService
-import com.example.lock_in.services.NotificationBlockingService
 import com.example.lock_in.services.PomodoroManager
-import com.example.lock_in.services.ShortFormBlockingService
-import com.example.lock_in.services.WebBlockingVPNService
+import com.example.lock_in.services.notifications.NotificationBlockingService
+import com.example.lock_in.services.shorts.ShortFormBlockingService
+import com.example.lock_in.services.web.WebBlockingVPNService
 import io.flutter.plugin.common.EventChannel
-import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -23,6 +22,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * FocusModeManager - Central coordinator for focus sessions ONLY Blocking is now completely
@@ -53,18 +53,18 @@ class FocusModeManager(private val context: Context) {
 
         fun getInstance(context: Context): FocusModeManager {
             return INSTANCE
-                    ?: synchronized(this) {
-                        INSTANCE
-                                ?: FocusModeManager(context.applicationContext).also {
-                                    INSTANCE = it
-                                }
-                    }
+                ?: synchronized(this) {
+                    INSTANCE
+                        ?: FocusModeManager(context.applicationContext).also {
+                            INSTANCE = it
+                        }
+                }
         }
     }
 
     // Core components
     private val prefs: SharedPreferences =
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val handler = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -104,20 +104,20 @@ class FocusModeManager(private val context: Context) {
         try {
             // FIX: Ensure data is properly serialized as Map<String, Any>
             val serializedData =
-                    when (data) {
-                        is Map<*, *> -> {
-                            // Convert to proper Map<String, Any>
-                            data.entries.associate { it.key.toString() to (it.value ?: "null") }
-                        }
-                        else -> mapOf("value" to data)
+                when (data) {
+                    is Map<*, *> -> {
+                        // Convert to proper Map<String, Any>
+                        data.entries.associate { it.key.toString() to (it.value ?: "null") }
                     }
+                    else -> mapOf("value" to data)
+                }
 
             val eventData =
-                    mapOf(
-                            "event" to event,
-                            "data" to serializedData,
-                            "timestamp" to System.currentTimeMillis()
-                    )
+                mapOf(
+                    "event" to event,
+                    "data" to serializedData,
+                    "timestamp" to System.currentTimeMillis()
+                )
 
             if (eventSink != null) {
                 handler.post { eventSink?.success(eventData) }
@@ -140,12 +140,12 @@ class FocusModeManager(private val context: Context) {
 
                 // Parse session data with proper type handling
                 val session =
-                        try {
-                            FocusSession.fromMap(sessionData)
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Error parsing session data", e)
-                            return@withContext false
-                        }
+                    try {
+                        FocusSession.fromMap(sessionData)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error parsing session data", e)
+                        return@withContext false
+                    }
 
                 // Validate session data
                 if (!validateSessionData(session)) {
@@ -194,14 +194,14 @@ class FocusModeManager(private val context: Context) {
 
                 // Send start event to Flutter with proper data
                 sendEventToFlutter(
-                        "session_started",
-                        mapOf(
-                                "sessionId" to session.sessionId,
-                                "sessionType" to session.sessionType,
-                                "plannedDuration" to session.plannedDuration,
-                                "startTime" to sessionStartTime,
-                                "blockedApps" to session.blockedApps
-                        )
+                    "session_started",
+                    mapOf(
+                        "sessionId" to session.sessionId,
+                        "sessionType" to session.sessionType,
+                        "plannedDuration" to session.plannedDuration,
+                        "startTime" to sessionStartTime,
+                        "blockedApps" to session.blockedApps
+                    )
                 )
 
                 Log.d(TAG, "✅ Focus session started successfully: ${session.sessionId}")
@@ -236,11 +236,11 @@ class FocusModeManager(private val context: Context) {
 
                 // Send pause event to Flutter
                 sendEventToFlutter(
-                        "session_paused",
-                        mapOf(
-                                "pausedAt" to System.currentTimeMillis(),
-                                "elapsedTime" to pausedElapsedTime
-                        )
+                    "session_paused",
+                    mapOf(
+                        "pausedAt" to System.currentTimeMillis(),
+                        "elapsedTime" to pausedElapsedTime
+                    )
                 )
 
                 Log.d(TAG, "Session paused successfully")
@@ -274,11 +274,11 @@ class FocusModeManager(private val context: Context) {
 
                 // Send resume event to Flutter
                 sendEventToFlutter(
-                        "session_resumed",
-                        mapOf(
-                                "resumedAt" to System.currentTimeMillis(),
-                                "elapsedTime" to pausedElapsedTime
-                        )
+                    "session_resumed",
+                    mapOf(
+                        "resumedAt" to System.currentTimeMillis(),
+                        "elapsedTime" to pausedElapsedTime
+                    )
                 )
 
                 Log.d(TAG, "Session resumed successfully")
@@ -305,23 +305,23 @@ class FocusModeManager(private val context: Context) {
                     // Calculate final stats
                     val endTime = System.currentTimeMillis()
                     val totalElapsed =
-                            if (isPaused) pausedElapsedTime else endTime - sessionStartTime
+                        if (isPaused) pausedElapsedTime else endTime - sessionStartTime
                     val actualDuration = (totalElapsed / 60000).toInt() // Convert to minutes
                     val completionRate =
-                            if (session.plannedDuration > 0) {
-                                (actualDuration.toFloat() / session.plannedDuration) * 100
-                            } else 100f
+                        if (session.plannedDuration > 0) {
+                            (actualDuration.toFloat() / session.plannedDuration) * 100
+                        } else 100f
 
                     // Update session with final data
                     val completedSession =
-                            session.copy(
-                                    endTime = endTime,
-                                    actualDuration = actualDuration,
-                                    completionRate = completionRate.coerceAtMost(100f),
-                                    status =
-                                            if (completionRate >= 100f) "completed"
-                                            else "ended_early"
-                            )
+                        session.copy(
+                            endTime = endTime,
+                            actualDuration = actualDuration,
+                            completionRate = completionRate.coerceAtMost(100f),
+                            status =
+                                if (completionRate >= 100f) "completed"
+                                else "ended_early"
+                        )
 
                     // Stop timer
                     stopTimer()
@@ -334,15 +334,15 @@ class FocusModeManager(private val context: Context) {
 
                     // Send completion event to Flutter with proper data structure
                     sendEventToFlutter(
-                            "session_completed",
-                            mapOf(
-                                    "sessionId" to completedSession.sessionId,
-                                    "actualDuration" to actualDuration,
-                                    "completionRate" to completionRate,
-                                    "totalElapsed" to totalElapsed,
-                                    "interruptions" to completedSession.interruptions.size,
-                                    "status" to completedSession.status
-                            )
+                        "session_completed",
+                        mapOf(
+                            "sessionId" to completedSession.sessionId,
+                            "actualDuration" to actualDuration,
+                            "completionRate" to completionRate,
+                            "totalElapsed" to totalElapsed,
+                            "interruptions" to completedSession.interruptions.size,
+                            "status" to completedSession.status
+                        )
                     )
 
                     Log.d(TAG, "Session ended successfully: ${session.sessionId}")
@@ -363,33 +363,33 @@ class FocusModeManager(private val context: Context) {
             val session = currentSession ?: return null
 
             val elapsed =
-                    if (isPaused) {
-                        pausedElapsedTime
-                    } else if (isSessionActive) {
-                        System.currentTimeMillis() - sessionStartTime
-                    } else {
-                        0L
-                    }
+                if (isPaused) {
+                    pausedElapsedTime
+                } else if (isSessionActive) {
+                    System.currentTimeMillis() - sessionStartTime
+                } else {
+                    0L
+                }
 
             mapOf(
-                    "sessionId" to session.sessionId,
-                    "isActive" to isSessionActive,
-                    "isPaused" to isPaused,
-                    "elapsedTime" to elapsed,
-                    "elapsedMinutes" to (elapsed / 60000).toInt(),
-                    "plannedDuration" to session.plannedDuration,
-                    "sessionType" to session.sessionType,
-                    "timerMode" to session.timerMode,
-                    "status" to session.status,
-                    "completionRate" to
-                            if (session.plannedDuration > 0) {
-                                ((elapsed / 60000).toInt().toFloat() / session.plannedDuration) *
-                                        100
-                            } else 0f,
-                    "remainingTime" to
-                            if (session.sessionType == "timer" && session.plannedDuration > 0) {
-                                maxOf(0, (session.plannedDuration * 60000) - elapsed)
-                            } else 0L
+                "sessionId" to session.sessionId,
+                "isActive" to isSessionActive,
+                "isPaused" to isPaused,
+                "elapsedTime" to elapsed,
+                "elapsedMinutes" to (elapsed / 60000).toInt(),
+                "plannedDuration" to session.plannedDuration,
+                "sessionType" to session.sessionType,
+                "timerMode" to session.timerMode,
+                "status" to session.status,
+                "completionRate" to
+                        if (session.plannedDuration > 0) {
+                            ((elapsed / 60000).toInt().toFloat() / session.plannedDuration) *
+                                    100
+                        } else 0f,
+                "remainingTime" to
+                        if (session.sessionType == "timer" && session.plannedDuration > 0) {
+                            maxOf(0, (session.plannedDuration * 60000) - elapsed)
+                        } else 0L
             )
         } catch (e: Exception) {
             Log.e(TAG, "Error getting session status", e)
@@ -414,52 +414,52 @@ class FocusModeManager(private val context: Context) {
 
     private fun initializeCountdownTimer(session: FocusSession) {
         timerRunnable =
-                object : Runnable {
-                    override fun run() {
-                        if (!isPaused && isSessionActive) {
-                            val elapsed = System.currentTimeMillis() - sessionStartTime
-                            val remaining = (session.plannedDuration * 60000L) - elapsed
+            object : Runnable {
+                override fun run() {
+                    if (!isPaused && isSessionActive) {
+                        val elapsed = System.currentTimeMillis() - sessionStartTime
+                        val remaining = (session.plannedDuration * 60000L) - elapsed
 
-                            sendTimerUpdate(elapsed, remaining)
+                        sendTimerUpdate(elapsed, remaining)
 
-                            if (remaining <= 0) {
-                                scope.launch { completeSession("timer_finished") }
-                                return
-                            }
-
-                            handler.postDelayed(this, 1000)
+                        if (remaining <= 0) {
+                            scope.launch { completeSession("timer_finished") }
+                            return
                         }
+
+                        handler.postDelayed(this, 1000)
                     }
                 }
+            }
         handler.post(timerRunnable!!)
     }
 
     private fun initializeStopwatchTimer(session: FocusSession) {
         timerRunnable =
-                object : Runnable {
-                    override fun run() {
-                        if (!isPaused && isSessionActive) {
-                            val elapsed = System.currentTimeMillis() - sessionStartTime
-                            sendTimerUpdate(elapsed, 0L)
-                            handler.postDelayed(this, 1000)
-                        }
+            object : Runnable {
+                override fun run() {
+                    if (!isPaused && isSessionActive) {
+                        val elapsed = System.currentTimeMillis() - sessionStartTime
+                        sendTimerUpdate(elapsed, 0L)
+                        handler.postDelayed(this, 1000)
                     }
                 }
+            }
         handler.post(timerRunnable!!)
     }
 
     private fun initializePomodoroTimer(session: FocusSession) {
         pomodoroManager =
-                PomodoroManager(session) { phase, elapsed, remaining ->
-                    sendTimerUpdate(elapsed, remaining, phase)
+            PomodoroManager(session) { phase, elapsed, remaining ->
+                sendTimerUpdate(elapsed, remaining, phase)
 
-                    if (remaining <= 0) {
-                        when (phase) {
-                            "work" -> pomodoroManager?.startBreak()
-                            "short_break", "long_break" -> pomodoroManager?.startWork()
-                        }
+                if (remaining <= 0) {
+                    when (phase) {
+                        "work" -> pomodoroManager?.startBreak()
+                        "short_break", "long_break" -> pomodoroManager?.startWork()
                     }
                 }
+            }
         pomodoroManager?.start()
     }
 
@@ -474,14 +474,14 @@ class FocusModeManager(private val context: Context) {
 
     private fun sendTimerUpdate(elapsed: Long, remaining: Long, phase: String = "focus") {
         sendEventToFlutter(
-                "timer_update",
-                mapOf(
-                        "elapsed" to elapsed,
-                        "elapsedMinutes" to (elapsed / 60000).toInt(),
-                        "remaining" to remaining,
-                        "remainingMinutes" to (remaining / 60000).toInt(),
-                        "phase" to phase
-                )
+            "timer_update",
+            mapOf(
+                "elapsed" to elapsed,
+                "elapsedMinutes" to (elapsed / 60000).toInt(),
+                "remaining" to remaining,
+                "remainingMinutes" to (remaining / 60000).toInt(),
+                "phase" to phase
+            )
         )
     }
 
@@ -494,46 +494,46 @@ class FocusModeManager(private val context: Context) {
             try {
                 // CRITICAL FIX: Create proper JSON with explicit blockedApps array
                 val sessionJson =
-                        JSONObject().apply {
-                            put("sessionId", session.sessionId)
-                            put("userId", session.userId)
-                            put("startTime", session.startTime)
-                            put("plannedDuration", session.plannedDuration)
-                            put("sessionType", session.sessionType)
-                            put("timerMode", session.timerMode)
-                            put("status", session.status)
+                    JSONObject().apply {
+                        put("sessionId", session.sessionId)
+                        put("userId", session.userId)
+                        put("startTime", session.startTime)
+                        put("plannedDuration", session.plannedDuration)
+                        put("sessionType", session.sessionType)
+                        put("timerMode", session.timerMode)
+                        put("status", session.status)
 
-                            // CRITICAL: Explicitly create blockedApps array
-                            val blockedAppsArray = org.json.JSONArray()
-                            session.blockedApps.forEach { app -> blockedAppsArray.put(app) }
-                            put("blockedApps", blockedAppsArray)
+                        // CRITICAL: Explicitly create blockedApps array
+                        val blockedAppsArray = org.json.JSONArray()
+                        session.blockedApps.forEach { app -> blockedAppsArray.put(app) }
+                        put("blockedApps", blockedAppsArray)
 
-                            Log.d(
-                                    TAG,
-                                    "📱 Created JSON with ${blockedAppsArray.length()} blocked apps"
-                            )
+                        Log.d(
+                            TAG,
+                            "📱 Created JSON with ${blockedAppsArray.length()} blocked apps"
+                        )
 
-                            // Add other arrays
-                            val websitesArray = org.json.JSONArray()
-                            session.blockedWebsites.forEach { website ->
-                                websitesArray.put(JSONObject(website))
-                            }
-                            put("blockedWebsites", websitesArray)
-
-                            put("shortFormBlocked", session.shortFormBlocked)
-                            put("shortFormBlocks", JSONObject(session.shortFormBlocks))
-                            put("notificationsBlocked", session.notificationsBlocked)
-                            put("notificationBlocks", JSONObject(session.notificationBlocks))
+                        // Add other arrays
+                        val websitesArray = org.json.JSONArray()
+                        session.blockedWebsites.forEach { website ->
+                            websitesArray.put(JSONObject(website))
                         }
+                        put("blockedWebsites", websitesArray)
+
+                        put("shortFormBlocked", session.shortFormBlocked)
+                        put("shortFormBlocks", JSONObject(session.shortFormBlocks))
+                        put("notificationsBlocked", session.notificationsBlocked)
+                        put("notificationBlocks", JSONObject(session.notificationBlocks))
+                    }
 
                 val sessionJsonString = sessionJson.toString()
                 Log.d(TAG, "📤 Sending to service: $sessionJsonString")
 
                 val monitoringIntent =
-                        Intent(context, AppMonitoringService::class.java).apply {
-                            action = "START_MONITORING"
-                            putExtra("session_data", sessionJsonString)
-                        }
+                    Intent(context, AppMonitoringService::class.java).apply {
+                        action = "START_MONITORING"
+                        putExtra("session_data", sessionJsonString)
+                    }
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(monitoringIntent)
@@ -554,9 +554,9 @@ class FocusModeManager(private val context: Context) {
             // Start service if any blocking is active OR session is active
             if (isBlockingActive() || isSessionActive) {
                 val intent =
-                        Intent(context, AppMonitoringService::class.java).apply {
-                            action = AppMonitoringService.ACTION_START_MONITORING
-                        }
+                    Intent(context, AppMonitoringService::class.java).apply {
+                        action = AppMonitoringService.ACTION_START_MONITORING
+                    }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(intent)
                 } else {
@@ -574,22 +574,22 @@ class FocusModeManager(private val context: Context) {
     // ====================
 
     fun reportInterruption(
-            packageName: String,
-            appName: String,
-            type: String,
-            wasBlocked: Boolean
+        packageName: String,
+        appName: String,
+        type: String,
+        wasBlocked: Boolean
     ) {
         try {
             val session = currentSession
 
             val interruption =
-                    Interruption(
-                            timestamp = System.currentTimeMillis(),
-                            type = type,
-                            appPackage = packageName,
-                            appName = appName,
-                            wasBlocked = wasBlocked
-                    )
+                Interruption(
+                    timestamp = System.currentTimeMillis(),
+                    type = type,
+                    appPackage = packageName,
+                    appName = appName,
+                    wasBlocked = wasBlocked
+                )
 
             // Add to session interruptions if session exists
             session?.interruptions?.add(interruption)
@@ -597,16 +597,16 @@ class FocusModeManager(private val context: Context) {
 
             // Send to Flutter
             sendEventToFlutter(
-                    "interruption_detected",
-                    mapOf(
-                            "packageName" to packageName,
-                            "appName" to appName,
-                            "type" to type,
-                            "wasBlocked" to wasBlocked,
-                            "sessionId" to (session?.sessionId ?: ""),
-                            "totalInterruptions" to (session?.interruptions?.size ?: 0),
-                            "timestamp" to interruption.timestamp
-                    )
+                "interruption_detected",
+                mapOf(
+                    "packageName" to packageName,
+                    "appName" to appName,
+                    "type" to type,
+                    "wasBlocked" to wasBlocked,
+                    "sessionId" to (session?.sessionId ?: ""),
+                    "totalInterruptions" to (session?.interruptions?.size ?: 0),
+                    "timestamp" to interruption.timestamp
+                )
             )
 
             Log.d(TAG, "Interruption reported: $appName ($type, blocked: $wasBlocked)")
@@ -696,7 +696,7 @@ class FocusModeManager(private val context: Context) {
                     val sessionData = JSONObject(sessionJson).toMap()
                     currentSession = FocusSession.fromMap(sessionData)
                     sessionStartTime =
-                            prefs.getLong(KEY_SESSION_START_TIME, System.currentTimeMillis())
+                        prefs.getLong(KEY_SESSION_START_TIME, System.currentTimeMillis())
                     pausedElapsedTime = prefs.getLong(KEY_PAUSED_TIME, 0)
                     isPaused = prefs.getBoolean(KEY_IS_PAUSED, false)
                     isSessionActive = true
@@ -730,8 +730,8 @@ class FocusModeManager(private val context: Context) {
                 putBoolean(KEY_PERSISTENT_APP_BLOCKING, enabled)
                 if (blockedApps != null) {
                     putString(
-                            KEY_PERSISTENT_BLOCKED_APPS,
-                            org.json.JSONArray(blockedApps).toString()
+                        KEY_PERSISTENT_BLOCKED_APPS,
+                        org.json.JSONArray(blockedApps).toString()
                     )
                 }
                 apply()
@@ -744,7 +744,7 @@ class FocusModeManager(private val context: Context) {
     }
 
     fun isPersistentAppBlockingEnabled(): Boolean =
-            prefs.getBoolean(KEY_PERSISTENT_APP_BLOCKING, false)
+        prefs.getBoolean(KEY_PERSISTENT_APP_BLOCKING, false)
 
     fun getPersistentBlockedApps(): List<String> {
         try {
@@ -760,8 +760,8 @@ class FocusModeManager(private val context: Context) {
     }
 
     fun setPersistentWebsiteBlocking(
-            enabled: Boolean,
-            blockedWebsites: List<Map<String, Any>>? = null
+        enabled: Boolean,
+        blockedWebsites: List<Map<String, Any>>? = null
     ) {
         try {
             prefs.edit().apply {
@@ -783,7 +783,7 @@ class FocusModeManager(private val context: Context) {
     }
 
     fun isPersistentWebsiteBlockingEnabled(): Boolean =
-            prefs.getBoolean(KEY_PERSISTENT_WEBSITE_BLOCKING, false)
+        prefs.getBoolean(KEY_PERSISTENT_WEBSITE_BLOCKING, false)
 
     fun getPersistentBlockedWebsites(): List<Map<String, Any>> {
         try {
@@ -802,16 +802,16 @@ class FocusModeManager(private val context: Context) {
     }
 
     fun setPersistentShortFormBlocking(
-            enabled: Boolean,
-            shortFormBlocks: Map<String, Any>? = null
+        enabled: Boolean,
+        shortFormBlocks: Map<String, Any>? = null
     ) {
         try {
             prefs.edit().apply {
                 putBoolean(KEY_PERSISTENT_SHORT_FORM_BLOCKING, enabled)
                 if (shortFormBlocks != null) {
                     putString(
-                            KEY_PERSISTENT_SHORT_FORM_BLOCKS,
-                            org.json.JSONObject(shortFormBlocks).toString()
+                        KEY_PERSISTENT_SHORT_FORM_BLOCKS,
+                        org.json.JSONObject(shortFormBlocks).toString()
                     )
                 }
                 apply()
@@ -824,7 +824,7 @@ class FocusModeManager(private val context: Context) {
     }
 
     fun isPersistentShortFormBlockingEnabled(): Boolean =
-            prefs.getBoolean(KEY_PERSISTENT_SHORT_FORM_BLOCKING, false)
+        prefs.getBoolean(KEY_PERSISTENT_SHORT_FORM_BLOCKING, false)
 
     fun getPersistentShortFormBlocks(): Map<String, Any> {
         try {
@@ -837,16 +837,16 @@ class FocusModeManager(private val context: Context) {
     }
 
     fun setPersistentNotificationBlocking(
-            enabled: Boolean,
-            notificationBlocks: Map<String, Any>? = null
+        enabled: Boolean,
+        notificationBlocks: Map<String, Any>? = null
     ) {
         try {
             prefs.edit().apply {
                 putBoolean(KEY_PERSISTENT_NOTIFICATION_BLOCKING, enabled)
                 if (notificationBlocks != null) {
                     putString(
-                            KEY_PERSISTENT_NOTIFICATION_BLOCKS,
-                            org.json.JSONObject(notificationBlocks).toString()
+                        KEY_PERSISTENT_NOTIFICATION_BLOCKS,
+                        org.json.JSONObject(notificationBlocks).toString()
                     )
                 }
                 apply()
@@ -859,7 +859,7 @@ class FocusModeManager(private val context: Context) {
     }
 
     fun isPersistentNotificationBlockingEnabled(): Boolean =
-            prefs.getBoolean(KEY_PERSISTENT_NOTIFICATION_BLOCKING, false)
+        prefs.getBoolean(KEY_PERSISTENT_NOTIFICATION_BLOCKING, false)
 
     fun getPersistentNotificationBlocks(): Map<String, Any> {
         try {
@@ -915,11 +915,11 @@ class FocusModeManager(private val context: Context) {
 
     /** Returns true if any blocking mode should be enforced */
     fun isBlockingActive(): Boolean =
-            isSessionActive ||
-                    isPersistentAppBlockingEnabled() ||
-                    isPersistentWebsiteBlockingEnabled() ||
-                    isPersistentShortFormBlockingEnabled() ||
-                    isPersistentNotificationBlockingEnabled()
+        isSessionActive ||
+                isPersistentAppBlockingEnabled() ||
+                isPersistentWebsiteBlockingEnabled() ||
+                isPersistentShortFormBlockingEnabled() ||
+                isPersistentNotificationBlockingEnabled()
 
     fun isPersistentBlockingEnabled(): Boolean = isPersistentAppBlockingEnabled()
 

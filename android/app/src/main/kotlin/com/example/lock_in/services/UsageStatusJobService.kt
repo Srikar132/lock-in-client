@@ -6,7 +6,7 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
-import com.example.lock_in.services.AppLimitManager
+import com.example.lock_in.services.limits.AppLimitManager
 import com.lockin.focus.FocusModeManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -37,16 +37,16 @@ class UsageTrackingJobService : JobService() {
                 // Don't create a new AppLimitManager instance if no app limits are set
                 // This prevents unnecessary job scheduling spam
                 val focusManager = FocusModeManager.getInstance(this@UsageTrackingJobService)
-                
+
                 // Only proceed if there are actual app limits configured
                 val sharedPrefs = getSharedPreferences("app_limits", MODE_PRIVATE)
                 val hasAppLimits = sharedPrefs.all.isNotEmpty()
-                
+
                 if (!hasAppLimits && !focusManager.isSessionActive()) {
                     Log.d(TAG, "No app limits configured and no active session - skipping job")
                     return@launch
                 }
-                
+
                 val appLimitManager = AppLimitManager(this@UsageTrackingJobService)
 
                 // Check all app limits

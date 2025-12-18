@@ -10,11 +10,10 @@ class FocusSessionRepository {
    // Create new session (works offline!)
   Future<String> createSession(FocusSessionModel session) async {
     try {
-      final docRef = await _firestore
-          .collection('focusSessions')
-          .add(session.toFirestore());
-      
-      return docRef.id;
+      final docRef = _firestore.collection('focusSessions').doc(session.sessionId);
+      await docRef.set(session.toFirestore());
+
+      return docRef.id; // Now this will be the timestamp ID
     } catch (e) {
       debugPrint('Error creating session: $e');
       rethrow;

@@ -72,15 +72,13 @@ class BlockedContentRepository {
   // === PERMANENTLY BLOCKED APPS ===
 
   // Add permanently blocked app
-  Future<void> addPermanentlyBlockedApp(
-    String userId,
-    String packageName,
-  ) async {
+  Future<void> addPermanentlyBlockedApp(String userId, String packageName) async {
     try {
-      await _getBlockedContentDoc(userId).update({
+      // CHANGE: Use .set with merge: true instead of .update
+      await _getBlockedContentDoc(userId).set({
         'permanentlyBlockedApps': FieldValue.arrayUnion([packageName]),
         'lastUpdated': Timestamp.fromDate(DateTime.now()),
-      });
+      }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('Error adding permanently blocked app: $e');
       rethrow;
@@ -121,31 +119,26 @@ class BlockedContentRepository {
 
   // === BLOCKED WEBSITES ===
 
-  // Add blocked website
+  // === BLOCKED WEBSITES ===
   Future<void> addBlockedWebsite(String userId, BlockedWebsite website) async {
     try {
       final currentData = await getBlockedContent(userId);
       final currentWebsites = currentData?.blockedWebsites ?? [];
 
-      // Check if website already exists
-      final existingIndex = currentWebsites.indexWhere(
-        (w) => w.url == website.url,
-      );
-
+      final existingIndex = currentWebsites.indexWhere((w) => w.url == website.url);
       List<BlockedWebsite> updatedWebsites;
       if (existingIndex != -1) {
-        // Update existing website
         updatedWebsites = List.from(currentWebsites);
         updatedWebsites[existingIndex] = website;
       } else {
-        // Add new website
         updatedWebsites = [...currentWebsites, website];
       }
 
-      await _getBlockedContentDoc(userId).update({
+      // CHANGE: Use .set with merge: true
+      await _getBlockedContentDoc(userId).set({
         'blockedWebsites': updatedWebsites.map((w) => w.toMap()).toList(),
         'lastUpdated': Timestamp.fromDate(DateTime.now()),
-      });
+      }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('Error adding blocked website: $e');
       rethrow;
@@ -219,17 +212,18 @@ class BlockedContentRepository {
     }
   }
 
-  // === SHORT FORM BLOCKS ===
 
-  // Add or update short form block
+// === SHORT FORM BLOCKS ===
   Future<void> setShortFormBlock(String userId, ShortFormBlock block) async {
     try {
       final key = '${block.platform}_${block.feature}';
 
-      await _getBlockedContentDoc(userId).update({
+      // CHANGE: Use .set with merge: true
+      await _getBlockedContentDoc(userId).set({
         'shortFormBlocks.$key': block.toMap(),
         'lastUpdated': Timestamp.fromDate(DateTime.now()),
-      });
+      }, SetOptions(merge: true));
+
     } catch (e) {
       debugPrint('Error setting short form block: $e');
       rethrow;

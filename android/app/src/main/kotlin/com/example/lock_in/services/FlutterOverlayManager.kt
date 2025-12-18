@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import com.example.lock_in.services.overlay.BlockOverlayActivity
 
 /**
  * FlutterOverlayManager - Manages Flutter-based overlay activities for different block types

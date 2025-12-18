@@ -7,10 +7,12 @@ import android.os.Bundle
 import android.util.Log
 import androidx.annotation.NonNull
 import com.example.lock_in.permissions.PermissionManager
-import com.example.lock_in.services.AppLimitManager
 import com.example.lock_in.services.NotificationHelper
+import com.example.lock_in.services.focus.FocusMonitoringService
+import com.example.lock_in.services.focus.FocusSessionManager
+import com.example.lock_in.services.limits.AppLimitManager
+import com.example.lock_in.services.shared.BlockingConfig
 import com.example.lock_in.utils.AppUtils
-import com.lockin.focus.FocusModeManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -34,8 +36,9 @@ class MainActivity: FlutterActivity() {
 
     // CORE MANAGERS
     private lateinit var permissionManager: PermissionManager
-    private lateinit var focusModeManager: FocusModeManager
+    private lateinit var sessionManager: FocusSessionManager
     private lateinit var appLimitManager: AppLimitManager
+    private lateinit var blockingConfig: BlockingConfig
 
 
     // Method channels
@@ -77,8 +80,8 @@ class MainActivity: FlutterActivity() {
 
     private fun syncSessionIfActive() {
         scope.launch {
-            // Ensure FocusModeManager is initialized and check session
-            if (focusModeManager.isSessionActive()) {
+            // Ensure FocusSessionManager is initialized and check session
+            if (sessionManager.isSessionActive()) {
                 // Tell Flutter to force a re-route
                 methodChannel.invokeMethod("force_sync_session", null)
             }
@@ -100,9 +103,9 @@ class MainActivity: FlutterActivity() {
     private fun initializeManagers() {
         try {
             permissionManager = PermissionManager(this)
-            focusModeManager = FocusModeManager(this)
+            sessionManager = FocusSessionManager.getInstance(this)
             appLimitManager = AppLimitManager(this)
-
+            blockingConfig = BlockingConfig.getInstance(this)
 
             Log.d(TAG, "All managers initialized successfully")
         } catch (e: Exception) {
@@ -124,7 +127,7 @@ class MainActivity: FlutterActivity() {
         eventChannel.setStreamHandler(object : EventChannel.StreamHandler {
             override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                 eventSink = events
-                focusModeManager.setEventSink(events)
+                sessionManager.setEventSink(events)
 
                 // Send queued events
                 eventQueue.forEach { (event, data) ->
@@ -137,7 +140,7 @@ class MainActivity: FlutterActivity() {
 
             override fun onCancel(arguments: Any?) {
                 eventSink = null
-                focusModeManager.setEventSink(null)
+                sessionManager.setEventSink(null)
                 Log.d(TAG, "Event channel disconnected")
             }
         })
@@ -162,7 +165,13 @@ class MainActivity: FlutterActivity() {
                             scope.launch {
                                 try {
                                     Log.d(TAG, "Starting focus session with data: $sessionData")
-                                    val success = focusModeManager.startSession(sessionData)
+                                    val success = sessionManager.startSession(sessionData)
+
+                                    // Start monitoring service if session started successfully
+                                    if (success) {
+                                        FocusMonitoringService.start(this@MainActivity)
+                                    }
+
                                     withContext(Dispatchers.Main) {
                                         result.success(success)
                                     }
@@ -181,7 +190,7 @@ class MainActivity: FlutterActivity() {
                     "pauseFocusSession" -> {
                         scope.launch {
                             try {
-                                val success = focusModeManager.pauseSession()
+                                val success = sessionManager.pauseSession()
                                 withContext(Dispatchers.Main) {
                                     result.success(success)
                                 }
@@ -197,7 +206,7 @@ class MainActivity: FlutterActivity() {
                     "resumeFocusSession" -> {
                         scope.launch {
                             try {
-                                val success = focusModeManager.resumeSession()
+                                val success = sessionManager.resumeSession()
                                 withContext(Dispatchers.Main) {
                                     result.success(success)
                                 }
@@ -213,7 +222,13 @@ class MainActivity: FlutterActivity() {
                     "endFocusSession" -> {
                         scope.launch {
                             try {
-                                val success = focusModeManager.endSession()
+                                val success = sessionManager.endSession()
+
+                                // Stop monitoring service when session ends
+                                if (success) {
+                                    FocusMonitoringService.stop(this@MainActivity)
+                                }
+
                                 withContext(Dispatchers.Main) {
                                     result.success(success)
                                 }
@@ -227,7 +242,7 @@ class MainActivity: FlutterActivity() {
                     }
 
                     "getCurrentSessionStatus" -> {
-                        val status = focusModeManager.getCurrentSessionStatus()
+                        val status = sessionManager.getCurrentSessionStatus()
                         result.success(status)
                     }
 
@@ -311,75 +326,79 @@ class MainActivity: FlutterActivity() {
                     // ====================
                     // PERSISTENT (ALWAYS-ON) BLOCKING
                     // ====================
-                    
+
                     // App blocking
                     "setPersistentAppBlocking" -> {
                         val args = arguments as? Map<*, *>
                         val enabled = args?.get("enabled") as? Boolean ?: false
-                        val apps = (args?.get("blockedApps") as? List<*>)?.mapNotNull { it as? String }
-                        focusModeManager.setPersistentAppBlocking(enabled, apps)
+                        val apps = (args?.get("blockedApps") as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+                        blockingConfig.setPersistentAppBlocking(enabled)
+                        blockingConfig.setPersistentBlockedApps(apps)
                         result.success(null)
                     }
 
                     "isPersistentAppBlockingEnabled" -> {
-                        result.success(focusModeManager.isPersistentAppBlockingEnabled())
+                        result.success(blockingConfig.isPersistentAppBlockingEnabled())
                     }
 
                     "getPersistentBlockedApps" -> {
-                        result.success(focusModeManager.getPersistentBlockedApps())
+                        result.success(blockingConfig.getPersistentBlockedApps())
                     }
 
                     // Website blocking
                     "setPersistentWebsiteBlocking" -> {
                         val args = arguments as? Map<*, *>
                         val enabled = args?.get("enabled") as? Boolean ?: false
-                        val websites = (args?.get("blockedWebsites") as? List<*>)?.mapNotNull { 
-                            it as? Map<String, Any> 
-                        }
-                        focusModeManager.setPersistentWebsiteBlocking(enabled, websites)
+                        val websites = (args?.get("blockedWebsites") as? List<*>)?.mapNotNull {
+                            it as? Map<String, Any>
+                        } ?: emptyList()
+                        blockingConfig.setPersistentWebsiteBlocking(enabled)
+                        blockingConfig.setPersistentBlockedWebsites(websites)
                         result.success(null)
                     }
 
                     "isPersistentWebsiteBlockingEnabled" -> {
-                        result.success(focusModeManager.isPersistentWebsiteBlockingEnabled())
+                        result.success(blockingConfig.isPersistentWebsiteBlockingEnabled())
                     }
 
                     "getPersistentBlockedWebsites" -> {
-                        result.success(focusModeManager.getPersistentBlockedWebsites())
+                        result.success(blockingConfig.getPersistentBlockedWebsites())
                     }
 
                     // Short-form content blocking
                     "setPersistentShortFormBlocking" -> {
                         val args = arguments as? Map<*, *>
                         val enabled = args?.get("enabled") as? Boolean ?: false
-                        val blocks = args?.get("shortFormBlocks") as? Map<String, Any>
-                        focusModeManager.setPersistentShortFormBlocking(enabled, blocks)
+                        val blocks = args?.get("shortFormBlocks") as? Map<String, Any> ?: emptyMap()
+                        blockingConfig.setPersistentShortFormBlocking(enabled)
+                        blockingConfig.setPersistentShortFormConfig(blocks)
                         result.success(null)
                     }
 
                     "isPersistentShortFormBlockingEnabled" -> {
-                        result.success(focusModeManager.isPersistentShortFormBlockingEnabled())
+                        result.success(blockingConfig.isPersistentShortFormBlockingEnabled())
                     }
 
                     "getPersistentShortFormBlocks" -> {
-                        result.success(focusModeManager.getPersistentShortFormBlocks())
+                        result.success(blockingConfig.getPersistentShortFormConfig())
                     }
 
                     // Notification blocking
                     "setPersistentNotificationBlocking" -> {
                         val args = arguments as? Map<*, *>
                         val enabled = args?.get("enabled") as? Boolean ?: false
-                        val blocks = args?.get("notificationBlocks") as? Map<String, Any>
-                        focusModeManager.setPersistentNotificationBlocking(enabled, blocks)
+                        val blocks = args?.get("notificationBlocks") as? Map<String, Any> ?: emptyMap()
+                        blockingConfig.setPersistentNotificationBlocking(enabled)
+                        blockingConfig.setPersistentNotificationConfig(blocks)
                         result.success(null)
                     }
 
                     "isPersistentNotificationBlockingEnabled" -> {
-                        result.success(focusModeManager.isPersistentNotificationBlockingEnabled())
+                        result.success(blockingConfig.isPersistentNotificationBlockingEnabled())
                     }
 
                     "getPersistentNotificationBlocks" -> {
-                        result.success(focusModeManager.getPersistentNotificationBlocks())
+                        result.success(blockingConfig.getPersistentNotificationConfig())
                     }
 
                     else -> {
@@ -450,7 +469,7 @@ class MainActivity: FlutterActivity() {
         scope.launch {
             try {
 
-                if (focusModeManager.isSessionActive()) {
+                if (sessionManager.isSessionActive()) {
                     // Notify Flutter to force a state refresh
                     methodChannel.invokeMethod("force_sync_session", null)
                 }
@@ -479,15 +498,17 @@ class MainActivity: FlutterActivity() {
         try {
             // Cleanup
             scope.cancel()
-            eventSink = null
+
+                        eventSink = null
             eventQueue.clear()
 
             // Cleanup managers
-            focusModeManager.cleanup()
+            sessionManager.cleanup()
             permissionManager.cleanup()
             appLimitManager.cleanup()
 
             Log.d(TAG, "MainActivity destroyed and cleaned up")
+
 
         } catch (e:  Exception) {
             Log.e(TAG, "Error during cleanup", e)

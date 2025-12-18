@@ -62,7 +62,7 @@
         <!-- OVERLAY ACTIVITY (Flutter Block Screens)    -->
         <!-- ============================================ -->
         <activity
-            android:name=".services.BlockOverlayActivity"
+            android:name=".services.overlay.BlockOverlayActivity"
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
@@ -73,7 +73,9 @@
             android:excludeFromRecents="true"
             android:exported="false">
         </activity>
-        
+
+
+
         <!-- Accessibility Service for app blocking -->
         <service
             android:name=".services.LockInAccessibilityService"
@@ -100,7 +102,7 @@
 
         <!-- Short Form Blocking Service -->
         <service
-            android:name=".services.ShortFormBlockingService"
+            android:name=".services.shorts.ShortFormBlockingService"
             android:exported="false"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
@@ -110,7 +112,7 @@
 
         <!-- Notification Blocking Service -->
         <service
-            android:name=".services.NotificationBlockingService"
+            android:name=".services.notifications.NotificationBlockingService"
             android:exported="false"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
@@ -120,7 +122,7 @@
 
         <!-- Web Blocking VPN Service -->
         <service
-            android:name=".services.WebBlockingVPNService"
+            android:name=".services.web.WebBlockingVPNService"
             android:exported="false"
             android:permission="android.permission.BIND_VPN_SERVICE">
             <intent-filter>
@@ -140,6 +142,30 @@
             android:enabled="true"
             android:exported="false" />
 
+
+        <!-- NEW ARCHITECTURE: Focus Monitoring Service -->
+        <service
+            android:name=".services.focus.FocusMonitoringService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Focus session app monitoring" />
+        </service>
+
+        <!-- NEW ARCHITECTURE: App Limit Monitoring Service -->
+        <service
+            android:name=".services.limits.AppLimitMonitoringService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="App limit enforcement" />
+        </service>
+
+        <!-- NEW ARCHITECTURE: Notification Blocking Service -->
 
 
 

@@ -18,16 +18,16 @@ class LockInAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         isServiceRunning = true
         Log.d(TAG, "Accessibility Service Connected")
-        
+
         // Configure the accessibility service
         val info = AccessibilityServiceInfo().apply {
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
-                        AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                    AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
             flags = AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
             packageNames = null // Listen to all apps
         }
-        
+
         serviceInfo = info
     }
 
