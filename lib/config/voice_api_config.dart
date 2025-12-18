@@ -9,8 +9,9 @@ class VoiceApiConfig {
   static const String whisperUrl = '$openaiBaseUrl/audio/transcriptions';
   static const String ttsUrl = '$openaiBaseUrl/audio/speech';
   
-  // Your API key (NEVER commit this - use env variables in production)
-  static const String apiKey = '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';
+  // Your API key - load from environment variables
+  // Run with: flutter run --dart-define-from-file=.env
+  static const String apiKey = String.fromEnvironment('OPENAI_API_KEY', defaultValue: '');
   
   // Audio Configuration - 24kHz mono 16-bit PCM for Realtime API
   static const int sampleRate = 24000; // 24kHz for Realtime API
