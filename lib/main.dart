@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lock_in/core/theme/app_theme.dart';
 import 'package:lock_in/presentation/overlays/overlay_app.dart';
 import 'package:lock_in/presentation/screens/splash_screen.dart';
+import 'package:lock_in/services/native_service.dart';
 
 // Overlay entry point - separate from main app
 void overlayMain() {
@@ -38,20 +39,32 @@ void main() async {
   // Initialize Firebase
   await Firebase.initializeApp();
 
-  // Enable Firebase offline persistence (replaces need for Hive in many cases)
+  // Enable Firebase offline persistence
   FirebaseFirestore.instance.settings = const Settings(
     persistenceEnabled: true,
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
-  // Note: Removed Hive initialization - Firebase handles all caching now
-  // await HiveService.init(); // Commented out since we're using Firebase-only approach
-
   runApp(const ProviderScope(child: LockInApp()));
 }
 
-class LockInApp extends StatelessWidget {
+class LockInApp extends ConsumerStatefulWidget {
   const LockInApp({super.key});
+
+  @override
+  ConsumerState<LockInApp> createState() => _LockInAppState();
+}
+
+class _LockInAppState extends ConsumerState<LockInApp> {
+  @override
+  void initState() {
+    super.initState();
+
+    // Initialize native method handler after the widget tree is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NativeService.initializeMethodHandler(ref);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +74,6 @@ class LockInApp extends StatelessWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.dark,
       home: const SplashScreen(),
-      // Add error handling for navigation issues
       builder: (context, child) {
         ErrorWidget.builder = (FlutterErrorDetails errorDetails) {
           return Material(
@@ -89,12 +101,11 @@ class LockInApp extends StatelessWidget {
                     const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: () {
-                        // Try to restart the app
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(
                             builder: (_) => const SplashScreen(),
                           ),
-                          (route) => false,
+                              (route) => false,
                         );
                       },
                       child: const Text('Restart App'),

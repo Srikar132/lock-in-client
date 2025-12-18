@@ -388,6 +388,24 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
     }
   }
 
+  Future<void> refreshSessionFromNative() async {
+    try {
+      final status = await NativeService.getCurrentSessionStatus();
+
+      if (status != null && status['isActive'] == true) {
+        final mappedData = _safeConvertToMap(status);
+        _handleSessionStarted(mappedData);
+        debugPrint('🔄 Focus session synchronized from Native');
+      } else if (state.isActive) {
+        // Reset to idle if native layer confirms no active session
+        state = FocusSessionState(status: FocusSessionStatus.idle);
+        _stopLocalTimer();
+      }
+    } catch (e) {
+      debugPrint('❌ Sync Error: $e');
+    }
+  }
+
   Future<void> _saveCompletedSession(Map<String, dynamic> data) async {
     try {
       final user = ref.read(currentUserProvider).value;

@@ -71,6 +71,17 @@ class OverlayDataNotifier extends Notifier<OverlayState> {
   OverlayState build() {
     // Initial load happens here
     _loadInitialData();
+
+    ref.listen(overlayEventsProvider, (previous, next) {
+      next.whenData((event) {
+        if (event['event'] == 'session_data') {
+          updateSessionData(Map<String, dynamic>.from(event['data']));
+        } else if (event['event'] == 'session_ended') {
+          closeOverlay(); // Auto-close if session finishes
+        }
+      });
+    });
+
     return const OverlayState();
   }
 

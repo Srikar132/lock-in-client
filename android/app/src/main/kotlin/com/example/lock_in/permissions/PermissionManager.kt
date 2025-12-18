@@ -177,51 +177,7 @@ class PermissionManager(private val activity: Activity) {
         }
     }
 
-    // Debug method to help troubleshoot accessibility permission issues
-    fun debugAccessibilityPermission(): String {
-        return try {
-            val sb = StringBuilder()
-            
-            // Check global accessibility
-            val accessibilityEnabled = Settings.Secure.getInt(
-                activity.contentResolver,
-                Settings.Secure.ACCESSIBILITY_ENABLED,
-                0
-            ) == 1
-            sb.appendLine("Global Accessibility Enabled: $accessibilityEnabled")
-            
-            // Get enabled services
-            val enabledServices = Settings.Secure.getString(
-                activity.contentResolver,
-                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-            ) ?: ""
-            sb.appendLine("Enabled Services: $enabledServices")
-            
-            // Check our service status
-            val serviceRunning = LockInAccessibilityService.isServiceRunning
-            sb.appendLine("Our Service Running: $serviceRunning")
-            
-            // Package name
-            sb.appendLine("Package Name: ${activity.packageName}")
-            
-            // Expected service names
-            sb.appendLine("Expected Service Names:")
-            val possibleNames = listOf(
-                "${activity.packageName}/.services.LockInAccessibilityService",
-                "${activity.packageName}/com.example.lock_in.services.LockInAccessibilityService",
-                "com.example.lock_in/.services.LockInAccessibilityService",
-                "com.example.lock_in/com.example.lock_in.services.LockInAccessibilityService"
-            )
-            possibleNames.forEach { name ->
-                val found = enabledServices.contains(name)
-                sb.appendLine("  - $name: $found")
-            }
-            
-            sb.toString()
-        } catch (e: Exception) {
-            "Error getting debug info: $e"
-        }
-    }
+
 
     // BACKGROUND PERMISSION (Battery Optimization Exemption)
     fun hasBackgroundPermission(): Boolean {
@@ -430,5 +386,26 @@ class PermissionManager(private val activity: Activity) {
         return Build.MANUFACTURER.equals("Xiaomi", ignoreCase = true) || 
             Build.MANUFACTURER.equals("Redmi", ignoreCase = true) ||
             Build.MANUFACTURER.equals("Poco", ignoreCase = true)
+    }
+
+    // Add these to the end of PermissionManager class
+    fun checkAllPermissions(): Map<String, Boolean> {
+        return mapOf(
+            "usageStats" to hasUsageStatsPermission(),
+            "accessibility" to hasAccessibilityPermission(),
+            "overlay" to hasOverlayPermission(),
+            "background" to hasBackgroundPermission(),
+            "notifications" to hasNotificationPermission(),
+            "displayPopup" to hasDisplayPopupPermission()
+        )
+    }
+
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        // This is a placeholder for any specific logic you want to run after a settings activity returns
+        Log.d("PermissionManager", "ActivityResult received: $requestCode")
+    }
+
+    fun cleanup() {
+        // Perform any cleanup if necessary (e.g., removing listeners)
     }
 }

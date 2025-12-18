@@ -63,12 +63,16 @@
         <!-- ============================================ -->
         <activity
             android:name=".services.BlockOverlayActivity"
-            android:exported="false"
-            android:launchMode="singleTask"
-            android:taskAffinity=".services.BlockOverlayActivity"
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:launchMode="singleInstance"
             android:excludeFromRecents="true"
-            android:theme="@style/NormalTheme"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize" />
+            android:exported="false">
+        </activity>
         
         <!-- Accessibility Service for app blocking -->
         <service

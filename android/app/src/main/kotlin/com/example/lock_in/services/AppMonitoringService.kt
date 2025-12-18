@@ -423,7 +423,8 @@ class AppMonitoringService : Service() {
                 )
 
                 // Send user to home screen
-                sendToHomeScreen()
+                //sendToHomeScreen()
+                bringAppToForeground()
 
                 // Report interruption
                 focusManager.reportInterruption(
@@ -673,6 +674,26 @@ class AppMonitoringService : Service() {
             startActivity(homeIntent)
         } catch (e: Exception) {
             Log.e(TAG, "Error sending to home screen", e)
+        }
+    }
+
+    /**
+     * Forcefully brings com.example.lock_in to the foreground
+     */
+    private fun bringAppToForeground() {
+        try {
+            val intent = packageManager.getLaunchIntentForPackage(this.packageName)?.apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                addFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED) // Helps when app was killed
+            }
+            if (intent != null) {
+                startActivity(intent)
+                Log.d(TAG, "Successfully brought LockIn to foreground")
+            }
+        } catch (e: Exception) {
+            sendToHomeScreen()
         }
     }
 

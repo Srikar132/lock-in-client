@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lock_in/data/models/installed_app_model.dart';
+import 'package:lock_in/presentation/providers/focus_session_provider.dart';
 
 /// Service class to handle all native Android permissions required by the app.
 /// This service communicates with the native Android side through method channels
@@ -8,6 +10,16 @@ import 'package:lock_in/data/models/installed_app_model.dart';
 class NativeService {
   static const _platform = MethodChannel('com.lockin.focus/native');
   static const _eventChannel = EventChannel('com.lockin.focus/events');
+
+  /// Initialize method handler to listen for native-initiated calls
+  static void initializeMethodHandler(WidgetRef ref) {
+    _platform.setMethodCallHandler((call) async {
+      if (call.method == "force_sync_session") {
+        // Trigger the notifier refresh logic
+        ref.read(focusSessionProvider.notifier).refreshSessionFromNative();
+      }
+    });
+  }
 
 
   // ============================================================================

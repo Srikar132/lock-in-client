@@ -34,7 +34,9 @@ object FlutterOverlayManager {
             Log.d(TAG, "Showing blocked app overlay for:  $appName ($packageName)")
 
             val intent = Intent(context, BlockOverlayActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
                 putExtra("overlay_type", "blocked_app")
                 putExtra("package_name", packageName)
                 putExtra("app_name", appName)

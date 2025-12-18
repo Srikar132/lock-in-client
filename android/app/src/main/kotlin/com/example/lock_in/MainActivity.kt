@@ -1,9 +1,14 @@
 package com.example.lock_in
 
+import android.app.ComponentCaller
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
 import android.util.Log
 import androidx.annotation.NonNull
 import com.example.lock_in.permissions.PermissionManager
 import com.example.lock_in.services.AppLimitManager
+import com.example.lock_in.services.NotificationHelper
 import com.example.lock_in.utils.AppUtils
 import com.lockin.focus.FocusModeManager
 import io.flutter.embedding.android.FlutterActivity
@@ -13,6 +18,8 @@ import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
@@ -30,6 +37,7 @@ class MainActivity: FlutterActivity() {
     private lateinit var focusModeManager: FocusModeManager
     private lateinit var appLimitManager: AppLimitManager
 
+
     // Method channels
     private lateinit var methodChannel: MethodChannel
     private lateinit var eventChannel: EventChannel
@@ -40,6 +48,42 @@ class MainActivity: FlutterActivity() {
 
     // SCOPE
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        Log.d(TAG, "MainActivity created")
+
+        // Initialize notification channels
+        NotificationHelper.createAllNotificationChannels(this)
+
+        // Store app start time
+        val prefs = getSharedPreferences("app_lifecycle", Context.MODE_PRIVATE)
+        if (!prefs.contains("app_start_time")) {
+            prefs.edit().putLong("app_start_time", System.currentTimeMillis()).apply()
+        }
+
+        syncSessionIfActive()
+
+    }
+
+
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent) // Update intent for the activity
+        syncSessionIfActive()
+    }
+
+    private fun syncSessionIfActive() {
+        scope.launch {
+            // Ensure FocusModeManager is initialized and check session
+            if (focusModeManager.isSessionActive()) {
+                // Tell Flutter to force a re-route
+                methodChannel.invokeMethod("force_sync_session", null)
+            }
+        }
+    }
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -58,6 +102,7 @@ class MainActivity: FlutterActivity() {
             permissionManager = PermissionManager(this)
             focusModeManager = FocusModeManager(this)
             appLimitManager = AppLimitManager(this)
+
 
             Log.d(TAG, "All managers initialized successfully")
         } catch (e: Exception) {
@@ -368,5 +413,86 @@ class MainActivity: FlutterActivity() {
         } catch (e: Exception) {
             Log.e(TAG, "Error sending event to Flutter: $event", e)
         }
+    }
+
+
+    // ====================
+    // ACTIVITY LIFECYCLE
+    // ====================
+
+    override fun onActivityResult(
+        requestCode: Int,
+        resultCode: Int,
+        data: Intent?,
+        caller: ComponentCaller
+    ) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        try {
+            permissionManager.onActivityResult(requestCode, resultCode, data)
+
+            // Send permission result to Flutter
+            scope.launch {
+                delay(500) // Small delay to ensure permission state is updated
+                val permissions = permissionManager.checkAllPermissions()
+                sendEventToFlutter("permissions_updated", permissions)
+            }
+
+        } catch (e:  Exception) {
+            Log.e(TAG, "Error handling activity result", e)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+
+        // Check for permission changes when app resumes
+        scope.launch {
+            try {
+
+                if (focusModeManager.isSessionActive()) {
+                    // Notify Flutter to force a state refresh
+                    methodChannel.invokeMethod("force_sync_session", null)
+                }
+
+
+                val permissions = permissionManager.checkAllPermissions()
+                sendEventToFlutter("app_resumed", mapOf(
+                    "permissions" to permissions,
+                    "timestamp" to System.currentTimeMillis()
+                ))
+            } catch (e: Exception) {
+                Log.e(TAG, "Error handling onResume", e)
+            }
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+
+        sendEventToFlutter("app_paused", mapOf(
+            "timestamp" to System.currentTimeMillis()
+        ))
+    }
+
+    override fun onDestroy() {
+        try {
+            // Cleanup
+            scope.cancel()
+            eventSink = null
+            eventQueue.clear()
+
+            // Cleanup managers
+            focusModeManager.cleanup()
+            permissionManager.cleanup()
+            appLimitManager.cleanup()
+
+            Log.d(TAG, "MainActivity destroyed and cleaned up")
+
+        } catch (e:  Exception) {
+            Log.e(TAG, "Error during cleanup", e)
+        }
+
+        super.onDestroy()
     }
 }

@@ -1,26 +1,68 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
+import 'package:lock_in/presentation/providers/focus_session_provider.dart';
 import 'package:lock_in/presentation/screens/entry_screen.dart';
 import 'package:lock_in/presentation/screens/home_screen.dart';
 import 'package:lock_in/presentation/screens/onboarding/onboarding_screen.dart';
 import 'package:lock_in/presentation/screens/permission_screen.dart';
+import 'package:lock_in/presentation/screens/active_focus_screen.dart';
+import 'package:lock_in/services/native_service.dart';
 
-class SplashScreen extends ConsumerWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
+}
 
+class _SplashScreenState extends ConsumerState<SplashScreen> {
+  bool _hasCheckedSession = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkActiveSession();
+  }
+
+  Future<void> _checkActiveSession() async {
+    // Wait a brief moment to ensure providers are ready
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    try {
+      final status = await NativeService.getCurrentSessionStatus();
+
+      if (status != null && status['isActive'] == true && mounted) {
+        // Sync the session state to Flutter
+        await ref.read(focusSessionProvider.notifier).refreshSessionFromNative();
+
+        setState(() {
+          _hasCheckedSession = true;
+        });
+      } else {
+        setState(() {
+          _hasCheckedSession = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error checking active session: $e');
+      setState(() {
+        _hasCheckedSession = true;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     // Watch authentication status and user data
     final isAuthenticated = ref.watch(isAuthenticatedProvider);
     final currentUser = ref.watch(currentUserProvider);
     final isLoading = ref.watch(authLoadingProvider);
     final authError = ref.watch(authErrorProvider);
-    
+    final focusSession = ref.watch(focusSessionProvider);
+
     // Show loading screen while determining state
-    if (isLoading || currentUser.isLoading) {
+    if (isLoading || currentUser.isLoading || !_hasCheckedSession) {
       return const _LoadingScreen();
     }
 
@@ -54,6 +96,15 @@ class SplashScreen extends ConsumerWidget {
         // Check permissions status
         if (!user.hasGrantedPermissions) {
           return const PermissionScreen();
+        }
+
+        // If there's an active focus session, show the active focus screen
+        if (focusSession.isActive) {
+          return ActiveFocusScreen(
+            sessionId: focusSession.sessionId ?? '',
+            plannedDuration: focusSession.plannedDuration ?? 0,
+            sessionType: focusSession.sessionType ?? 'focus',
+          );
         }
 
         // Everything completed - show home
@@ -107,9 +158,9 @@ class _ErrorScreen extends StatelessWidget {
                   color: Colors.white,
                 ),
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // Error Title
               const Text(
                 'Something went wrong',
@@ -120,9 +171,9 @@ class _ErrorScreen extends StatelessWidget {
                 ),
                 textAlign: TextAlign.center,
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // Error Message
               Text(
                 error,
@@ -132,9 +183,9 @@ class _ErrorScreen extends StatelessWidget {
                 ),
                 textAlign: TextAlign.center,
               ),
-              
+
               const SizedBox(height: 32),
-              
+
               // Retry Button
               ElevatedButton.icon(
                 onPressed: onRetry,
@@ -160,8 +211,6 @@ class _ErrorScreen extends StatelessWidget {
   }
 }
 
-
-
 class _LoadingScreen extends StatefulWidget {
   const _LoadingScreen();
 
@@ -181,7 +230,7 @@ class _LoadingScreenState extends State<_LoadingScreen>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
-    )..repeat(reverse: true); // 👈 pulse
+    )..repeat(reverse: true);
 
     _scaleAnimation = Tween<double>(
       begin: 0.85,

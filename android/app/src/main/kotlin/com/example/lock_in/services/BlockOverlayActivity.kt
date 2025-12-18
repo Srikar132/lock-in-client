@@ -14,10 +14,13 @@ import androidx.annotation.RequiresPermission
 import com.lockin.focus.FocusModeManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.EventChannel
-import kotlinx.coroutines.*
-import org.json.JSONObject
+import io.flutter.plugin.common.MethodChannel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * BlockOverlayActivity - Flutter activity for displaying beautiful block screens
@@ -108,13 +111,17 @@ class BlockOverlayActivity : FlutterActivity() {
         try {
             overlayType = intent.getStringExtra("overlay_type") ?: "blocked_app"
 
-            overlayData = when (overlayType) {
+            val baseData = when (overlayType) {
                 "blocked_app" -> parseBlockedAppData()
                 "blocked_shorts" -> parseBlockedShortsData()
                 "blocked_website" -> parseBlockedWebsiteData()
                 "app_limit" -> parseAppLimitData()
                 "notification_block" -> parseNotificationBlockData()
                 else -> emptyMap()
+            }
+
+            overlayData = baseData.toMutableMap().apply {
+                put("overlayType", overlayType)
             }
 
             Log.d(TAG, "Parsed overlay data: type=$overlayType, data=$overlayData")
@@ -190,48 +197,53 @@ class BlockOverlayActivity : FlutterActivity() {
     private fun configureOverlayWindow() {
         try {
             window.apply {
-                // Make it full screen
-                setFlags(
-                    WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                    WindowManager.LayoutParams.FLAG_FULLSCREEN
-                )
+                // 1. Force the screen to stay on and dismiss the keyguard (lock screen)
+                addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                addFlags(WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD)
 
-                // Show over other apps
+                // 2. Comprehensive flags for showing over the lock screen and waking the device
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-                    setFlags(
+                    setShowWhenLocked(true)
+                    setTurnScreenOn(true)
+                } else {
+                    @Suppress("DEPRECATION")
+                    addFlags(
                         WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON,
-                        WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                                WindowManager. LayoutParams.FLAG_TURN_SCREEN_ON
+                                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
                     )
                 }
 
-                // Set overlay type
+                // 3. CRITICAL: Set the layout to NOT be "touch modal" so it can capture focus
+                // and use FLAG_LAYOUT_IN_SCREEN to ensure it covers system bars
+                addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
+                addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN)
+                addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+
+                // 4. Set the proper overlay type for modern Android
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    setType(WindowManager. LayoutParams.TYPE_APPLICATION_OVERLAY)
+                    setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
                 } else {
                     @Suppress("DEPRECATION")
-                    setType(WindowManager.LayoutParams. TYPE_PHONE)
+                    setType(WindowManager.LayoutParams.TYPE_PHONE)
                 }
 
-                // Configure colors
-                statusBarColor = Color. TRANSPARENT
-                navigationBarColor = Color. TRANSPARENT
+                // 5. Configure transparent system bars for a seamless look
+                statusBarColor = Color.TRANSPARENT
+                navigationBarColor = Color.TRANSPARENT
 
-                // Handle display cutouts
-                if (Build.VERSION. SDK_INT >= Build.VERSION_CODES.P) {
+                // 6. Handle modern display cutouts (notches)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     attributes.layoutInDisplayCutoutMode =
                         WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
                 }
             }
 
-            Log.d(TAG, "Overlay window configured")
+            Log.d(TAG, "Overlay window configured with priority focus flags")
 
-        } catch (e:  Exception) {
+        } catch (e: Exception) {
             Log.e(TAG, "Error configuring overlay window", e)
         }
     }
-
     // ====================
     // SESSION DATA LOADING
     // ====================
