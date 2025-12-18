@@ -18,7 +18,8 @@ import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.annotation.RequiresPermission
-import com.lockin.focus.FocusModeManager
+import com.example.lock_in.services.focus.FocusSessionManager
+import com.example.lock_in.services.overlay.OverlayLauncher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -110,7 +111,8 @@ class ShortFormBlockingService : AccessibilityService() {
     }
 
     // Core components
-    private lateinit var focusManager: FocusModeManager
+    private lateinit var sessionManager: FocusSessionManager
+    private lateinit var overlayLauncher: OverlayLauncher
     private val handler = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -141,7 +143,8 @@ class ShortFormBlockingService : AccessibilityService() {
 
         try {
             // Initialize components
-            focusManager = FocusModeManager.getInstance(this)
+            sessionManager = FocusSessionManager.getInstance(this)
+            overlayLauncher = OverlayLauncher.getInstance(this)
 
             // Configure accessibility service
             configureAccessibilityService()
@@ -203,7 +206,9 @@ class ShortFormBlockingService : AccessibilityService() {
 
     @RequiresPermission(Manifest.permission.VIBRATE)
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (!focusManager.isSessionActive() || event == null) return
+        // Only block if session is active OR if persistent blocking is enabled
+        // For now, we'll check if session is active
+        if (!sessionManager.isSessionActive() || event == null) return
 
         try {
             val packageName = event.packageName?.toString() ?: return
@@ -607,30 +612,26 @@ class ShortFormBlockingService : AccessibilityService() {
             try {
                 Log.d(TAG, "Blocking short-form content:  $contentType")
 
-                // Get focus time
-                val focusTimeMinutes = getFocusTimeMinutes()
-
-                // Show Flutter overlay
-                FlutterOverlayManager.showBlockedShortsOverlay(
-                    context = this@ShortFormBlockingService,
-                    contentType = contentType,
+                // Show overlay using OverlayLauncher
+                val appName = getAppName(packageName)
+                overlayLauncher.showShortsBlockOverlay(
                     packageName = packageName,
-                    focusTimeMinutes = focusTimeMinutes,
-                    sessionType = focusManager.getCurrentSession()?.sessionType ?: "timer",
-                    sessionId = focusManager.getCurrentSession()?.sessionId ?: "",
-                    educationalMessage = educationalMessage
+                    appName = appName,
+                    contentType = contentType.lowercase().replace(" ", "_")
                 )
 
                 // Perform navigation action
                 performNavigationAction(actionType)
 
-                // Report interruption
-                focusManager.reportInterruption(
-                    packageName = packageName,
-                    appName = contentType,
-                    type = "short_form_content",
-                    wasBlocked = true
-                )
+                // Report interruption if session is active
+                if (sessionManager.isSessionActive()) {
+                    sessionManager.recordInterruption(
+                        packageName = packageName,
+                        appName = contentType,
+                        type = "short_form_content",
+                        wasBlocked = true
+                    )
+                }
 
                 // Show educational notification
                 showEducationalNotification(contentType, educationalMessage)
@@ -698,8 +699,8 @@ class ShortFormBlockingService : AccessibilityService() {
 
     private fun getFocusTimeMinutes(): Int {
         return try {
-            val sessionStatus = focusManager. getCurrentSessionStatus()
-            (sessionStatus?. get("elapsedMinutes") as? Int) ?: 0
+            val sessionStatus = sessionManager.getCurrentSessionStatus()
+            (sessionStatus?.get("elapsedMinutes") as? Int) ?: 0
         } catch (e: Exception) {
             0
         }
@@ -760,7 +761,7 @@ class ShortFormBlockingService : AccessibilityService() {
                     "content_type" to contentType,
                     "package_name" to packageName,
                     "timestamp" to System.currentTimeMillis(),
-                    "session_id" to (focusManager.getCurrentSession()?.sessionId ?: ""),
+                    "session_id" to (sessionManager.getCurrentSession()?.sessionId ?: ""),
                     "focus_time_minutes" to getFocusTimeMinutes()
                 )
 
@@ -820,6 +821,20 @@ class ShortFormBlockingService : AccessibilityService() {
 
         } catch (e: Exception) {
             Log.e(TAG, "Error updating blocks from JSON", e)
+        }
+    }
+
+    // ====================
+    // UTILITY METHODS
+    // ====================
+
+    private fun getAppName(packageName: String): String {
+        return try {
+            val pm = packageManager
+            val appInfo = pm.getApplicationInfo(packageName, 0)
+            pm.getApplicationLabel(appInfo).toString()
+        } catch (e: Exception) {
+            packageName
         }
     }
 
