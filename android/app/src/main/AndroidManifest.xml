@@ -134,6 +134,28 @@
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
 
+        <!-- NEW ARCHITECTURE: Focus Monitoring Service -->
+        <service
+            android:name=".services.focus.FocusMonitoringService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Focus session app monitoring" />
+        </service>
+
+        <!-- NEW ARCHITECTURE: App Limit Monitoring Service -->
+        <service
+            android:name=".services.limits.AppLimitMonitoringService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="App limit enforcement" />
+        </service>
+
         <!-- Focus Action Receiver (Notification Buttons) -->
         <receiver
             android:name=".services.FocusActionReceiver"
