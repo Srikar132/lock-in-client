@@ -55,10 +55,21 @@ class AppLimitManager(private val context: Context) {
     private val todayUsageCache = ConcurrentHashMap<String, Long>()
     private val warningsSentToday = ConcurrentHashMap<String, Set<Int>>()
 
+    // Track last scheduling time to prevent too frequent scheduling
+    private var lastScheduleTime = 0L
+    private val MIN_SCHEDULE_INTERVAL = 60000L // 1 minute minimum between scheduling attempts
+
     init {
         loadAppLimitsFromPrefs()
         loadWarningsFromPrefs()
-        scheduleUsageTracking()
+        
+        // Only schedule tracking if we actually have app limits
+        if (appLimits.isNotEmpty()) {
+            Log.d(TAG, "AppLimitManager initialized with ${appLimits.size} app limits")
+            scheduleUsageTrackingIfNeeded()
+        } else {
+            Log.d(TAG, "AppLimitManager initialized but no app limits found - not scheduling usage tracking")
+        }
     }
 
     // ====================
@@ -84,7 +95,7 @@ class AppLimitManager(private val context: Context) {
 
                 // Schedule tracking job if we have limits
                 if (appLimits.isNotEmpty()) {
-                    scheduleUsageTracking()
+                    scheduleUsageTrackingIfNeeded()
                 }
 
                 true
@@ -590,22 +601,35 @@ class AppLimitManager(private val context: Context) {
     // ====================
 
 
-    private fun scheduleUsageTracking() {
+    private fun scheduleUsageTrackingIfNeeded() {
         try {
+            val currentTime = System.currentTimeMillis()
+            
+            // Prevent too frequent scheduling to avoid Android system limits
+            if (currentTime - lastScheduleTime < MIN_SCHEDULE_INTERVAL) {
+                Log.d(TAG, "Skipping job scheduling - too soon since last attempt")
+                return
+            }
+            
+            // Cancel existing job first to avoid duplicates
+            jobScheduler.cancel(USAGE_TRACKING_JOB_ID)
+            
             val jobInfo = JobInfo.Builder(
                 USAGE_TRACKING_JOB_ID,
                 ComponentName(context, UsageTrackingJobService::class.java)
             )
                 .setPersisted(true)
                 .setPeriodic(15 * 60 * 1000) // Check every 15 minutes
-                . setRequiredNetworkType(JobInfo. NETWORK_TYPE_NONE)
+                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_NONE)
                 .setRequiresCharging(false)
                 .setRequiresDeviceIdle(false)
                 .build()
 
             val result = jobScheduler.schedule(jobInfo)
+            lastScheduleTime = currentTime
+            
             Log.d(TAG, "Usage tracking job scheduled: ${result == JobScheduler.RESULT_SUCCESS}")
-        } catch (e:  Exception) {
+        } catch (e: Exception) {
             Log.e(TAG, "Error scheduling usage tracking job", e)
         }
     }

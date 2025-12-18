@@ -10,11 +10,9 @@ final sessionRepositoryProvider = Provider<FocusSessionRepository>((ref) {
   return FocusSessionRepository();
 });
 
-// Today's sessions stream
 final todaySessionsProvider = StreamProvider.family<List<FocusSessionModel>, String>((ref, userId) {
   return ref.watch(sessionRepositoryProvider).streamTodaySessions(userId);
 });
-
 
 // ============================================================================
 // FOCUS SESSION STATE
@@ -84,66 +82,83 @@ class FocusSessionState {
 }
 
 // ============================================================================
-// FOCUS SESSION NOTIFIER (Riverpod 3.0)
+// FOCUS SESSION NOTIFIER (Fixed Type Casting)
 // ============================================================================
 
 class FocusSessionNotifier extends Notifier<FocusSessionState> {
   StreamSubscription? _eventSubscription;
   Timer? _localTimer;
 
-  // With Notifier, we initialize state in build()
   @override
   FocusSessionState build() {
-    // Start listening to native events immediately when the provider is built
     _listenToNativeEvents();
-
-    // Clean up subscription when the provider is destroyed
     ref.onDispose(() {
       _eventSubscription?.cancel();
       _stopLocalTimer();
     });
-
     return FocusSessionState();
   }
 
-  // ============================================================================
-  // EVENT LISTENING
-  // ============================================================================
-
   void _listenToNativeEvents() {
     _eventSubscription = NativeService.focusEventStream.listen(
-          (event) {
-        final eventType = event['event'] as String?;
-        final data = event['data'] as Map<String, dynamic>?;
+      (event) {
+        try {
+          final eventType = event['event'] as String?;
+          // FIX: Safe cast with proper error handling
+          final data = _safeConvertToMap(event['data']);
 
-        debugPrint('📡 Received native event: $eventType');
+          debugPrint('📡 Received native event: $eventType');
 
-        switch (eventType) {
-          case 'session_started':
-            _handleSessionStarted(data);
-            break;
-          case 'session_paused':
-            _handleSessionPaused(data);
-            break;
-          case 'session_resumed':
-            _handleSessionResumed(data);
-            break;
-          case 'session_completed':
-          case 'session_auto_completed':
-            _handleSessionCompleted(data);
-            break;
-          case 'timer_update':
-            _handleTimerUpdate(data);
-            break;
-          case 'interruption_detected':
-            _handleInterruptionDetected(data);
-            break;
+          switch (eventType) {
+            case 'session_started':
+              _handleSessionStarted(data);
+              break;
+            case 'session_paused':
+              _handleSessionPaused(data);
+              break;
+            case 'session_resumed':
+              _handleSessionResumed(data);
+              break;
+            case 'session_completed':
+            case 'session_auto_completed':
+              _handleSessionCompleted(data);
+              break;
+            case 'timer_update':
+              _handleTimerUpdate(data);
+              break;
+            case 'interruption_detected':
+              _handleInterruptionDetected(data);
+              break;
+          }
+        } catch (e, stack) {
+          debugPrint('❌ Error processing native event: $e');
+          debugPrint('Stack trace: $stack');
         }
       },
       onError: (error) {
         debugPrint('❌ Error in native event stream: $error');
       },
     );
+  }
+
+  /// FIX: Safely convert dynamic map to Map<String, dynamic>
+  Map<String, dynamic>? _safeConvertToMap(dynamic data) {
+    if (data == null) return null;
+    
+    try {
+      if (data is Map<String, dynamic>) {
+        return data;
+      } else if (data is Map) {
+        // Convert Map<Object?, Object?> to Map<String, dynamic>
+        return Map<String, dynamic>.from(data.map(
+          (key, value) => MapEntry(key.toString(), value),
+        ));
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error converting map: $e');
+    }
+    
+    return null;
   }
 
   void _handleSessionStarted(Map<String, dynamic>? data) {
@@ -153,7 +168,7 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
       status: FocusSessionStatus.active,
       sessionId: data['sessionId'] as String?,
       sessionType: data['sessionType'] as String?,
-      plannedDuration: data['plannedDuration'] as int?,
+      plannedDuration: _safeInt(data['plannedDuration']),
       isPaused: false,
       nativeSessionData: data,
     );
@@ -184,7 +199,6 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
     );
     _stopLocalTimer();
 
-    // Save to Firestore
     if (data != null) {
       _saveCompletedSession(data);
     }
@@ -193,25 +207,28 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
   void _handleTimerUpdate(Map<String, dynamic>? data) {
     if (data == null) return;
 
+    final elapsedMs = _safeInt(data['elapsed']);
+    final remainingMs = _safeInt(data['remaining']);
+
     state = state.copyWith(
-      elapsedSeconds: (data['elapsed'] as int?) != null
-          ? (data['elapsed'] as int) ~/ 1000
-          : null,
-      remainingSeconds: (data['remaining'] as int?) != null
-          ? (data['remaining'] as int) ~/ 1000
-          : null,
+      elapsedSeconds: elapsedMs != null ? elapsedMs ~/ 1000 : null,
+      remainingSeconds: remainingMs != null ? remainingMs ~/ 1000 : null,
     );
   }
 
   void _handleInterruptionDetected(Map<String, dynamic>? data) {
-    debugPrint('⚠️ Interruption detected: ${data?['appName']}');
-    // Could show UI notification or update stats
-
+    if (data == null) return;
+    debugPrint('⚠️ Interruption detected: ${data['appName']}');
   }
 
-  // ============================================================================
-  // LOCAL TIMER (Backup)
-  //============================================================================
+  /// Helper to safely extract integers from dynamic data
+  int? _safeInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
 
   void _startLocalTimer() {
     _stopLocalTimer();
@@ -235,14 +252,13 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
     _localTimer = null;
   }
 
-// Helper to get formatted date string for Repo
   String _getTodayDateString() {
     final now = DateTime.now();
     return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
   }
 
   // ============================================================================
-  // SESSION CONTROL
+  // SESSION CONTROL (Fixed Navigation Issue)
   // ============================================================================
 
   Future<void> startSession({
@@ -259,11 +275,10 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
       final user = ref.read(currentUserProvider).value;
       if (user == null) throw Exception('User not logged in');
 
-      // 1. Generate ID for Native use
       final nativeSessionId = DateTime.now().millisecondsSinceEpoch.toString();
       final todayDate = _getTodayDateString();
 
-      // 2. Start Native Session
+      // Start Native Session
       final success = await NativeService.startFocusSession(
         sessionId: nativeSessionId,
         userId: user.uid,
@@ -277,9 +292,8 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
 
       if (!success) throw Exception('Failed to start native session');
 
-      // 3. Create Model for Repository
       final sessionModel = FocusSessionModel(
-        sessionId: nativeSessionId, // This might be ignored by .add() in repo
+        sessionId: nativeSessionId,
         userId: user.uid,
         startTime: DateTime.now(),
         plannedDuration: plannedDuration,
@@ -288,14 +302,11 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
         date: todayDate,
       );
 
-      // 4. Call Repository (CORRECTED)
-      // The repo uses .add(), so it generates a NEW Firestore Document ID.
-      // We must capture this ID to update the session later.
       final firestoreId = await ref.read(sessionRepositoryProvider).createSession(sessionModel);
 
       state = state.copyWith(
         status: FocusSessionStatus.active,
-        sessionId: firestoreId, // Important: Use Firestore ID for state so completeSession works
+        sessionId: firestoreId,
         plannedDuration: plannedDuration,
         sessionType: sessionType,
         elapsedSeconds: 0,
@@ -339,21 +350,40 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
     }
   }
 
+  // FIX: Proper error handling to prevent navigation crashes
   Future<void> endSession() async {
-    if (!state.isActive) return;
+    if (!state.isActive) {
+      debugPrint('⚠️ No active session to end');
+      return;
+    }
 
     state = state.copyWith(status: FocusSessionStatus.ending);
 
-    final success = await NativeService.endFocusSession();
-    if (success) {
-      // Get final session data
-      final nativeData = await NativeService.getCurrentSessionStatus();
+    try {
+      final success = await NativeService.endFocusSession();
+      
+      if (success) {
+        final nativeData = await NativeService.getCurrentSessionStatus();
 
-      if (nativeData != null && state.sessionId != null) {
-        await _saveCompletedSession(nativeData);
+        if (nativeData != null && state.sessionId != null) {
+          await _saveCompletedSession(nativeData);
+        }
+
+        // FIX: Set state to idle BEFORE any navigation happens
+        state = FocusSessionState(status: FocusSessionStatus.idle);
+        _stopLocalTimer();
+        
+        debugPrint('✅ Session ended successfully');
+      } else {
+        throw Exception('Failed to end native session');
       }
-
-      state = FocusSessionState(status: FocusSessionStatus.idle);
+    } catch (e) {
+      debugPrint('❌ Error ending session: $e');
+      // Even if there's an error, reset to idle to prevent stuck state
+      state = FocusSessionState(
+        status: FocusSessionStatus.error,
+        error: e.toString(),
+      );
       _stopLocalTimer();
     }
   }
@@ -361,21 +391,19 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
   Future<void> _saveCompletedSession(Map<String, dynamic> data) async {
     try {
       final user = ref.read(currentUserProvider).value;
-      // We need the sessionId that matches the Firestore Document ID
       if (user == null || state.sessionId == null) return;
 
       final actualDuration = state.elapsedMinutes;
       final todayDate = _getTodayDateString();
 
-      // CORRECTION: Matching the Repo signature
-      // Repo expects: completeSession({required String sessionId, required String userId, required int actualDuration, required String date})
       await ref.read(sessionRepositoryProvider).completeSession(
         sessionId: state.sessionId!,
         userId: user.uid,
         actualDuration: actualDuration,
-        date: todayDate, // Added this
-        // Removed completionRate (repo doesn't take it as arg)
+        date: todayDate,
       );
+      
+      debugPrint('✅ Session saved to Firestore');
     } catch (e) {
       debugPrint('❌ Error saving completed session: $e');
     }
@@ -387,18 +415,17 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
 // ============================================================================
 
 final focusSessionProvider =
-NotifierProvider<FocusSessionNotifier, FocusSessionState>(() {
+    NotifierProvider<FocusSessionNotifier, FocusSessionState>(() {
   return FocusSessionNotifier();
 });
 
-// Derived providers
 final isSessionActiveProvider = Provider<bool>((ref) {
   return ref.watch(focusSessionProvider.select((s) => s.isActive));
 });
 
 final sessionElapsedTimeProvider = Provider<String>((ref) {
   final elapsed =
-  ref.watch(focusSessionProvider.select((s) => s.elapsedSeconds ?? 0));
+      ref.watch(focusSessionProvider.select((s) => s.elapsedSeconds ?? 0));
   final minutes = elapsed ~/ 60;
   final seconds = elapsed % 60;
   return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
@@ -406,7 +433,7 @@ final sessionElapsedTimeProvider = Provider<String>((ref) {
 
 final sessionRemainingTimeProvider = Provider<String>((ref) {
   final remaining =
-  ref.watch(focusSessionProvider.select((s) => s.remainingSeconds ?? 0));
+      ref.watch(focusSessionProvider.select((s) => s.remainingSeconds ?? 0));
   final minutes = remaining ~/ 60;
   final seconds = remaining % 60;
   return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';

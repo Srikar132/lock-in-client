@@ -79,10 +79,10 @@ class _ActiveFocusScreenState extends ConsumerState<ActiveFocusScreen>
     if (confirmed == true && mounted) {
       try {
         await ref.read(focusSessionProvider.notifier).endSession();
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          '/', // Navigate back to home or root
-          (route) => false,
-        );
+        // Navigator.of(context).pushNamedAndRemoveUntil(
+        //   '/', // Navigate back to home or root
+        //   (route) => false,
+        // );
       } catch (e) {
         debugPrint('Error ending session: $e');
         _showErrorSnackBar('Failed to end session');
@@ -114,7 +114,7 @@ class _ActiveFocusScreenState extends ConsumerState<ActiveFocusScreen>
           next.status == FocusSessionStatus.idle) {
         // Session ended, navigate back
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
+          if (mounted && Navigator.of(context).canPop()) {
             Navigator.of(context).pop();
           }
         });

@@ -34,6 +34,19 @@ class UsageTrackingJobService : JobService() {
 
         jobScope?.launch {
             try {
+                // Don't create a new AppLimitManager instance if no app limits are set
+                // This prevents unnecessary job scheduling spam
+                val focusManager = FocusModeManager.getInstance(this@UsageTrackingJobService)
+                
+                // Only proceed if there are actual app limits configured
+                val sharedPrefs = getSharedPreferences("app_limits", MODE_PRIVATE)
+                val hasAppLimits = sharedPrefs.all.isNotEmpty()
+                
+                if (!hasAppLimits && !focusManager.isSessionActive()) {
+                    Log.d(TAG, "No app limits configured and no active session - skipping job")
+                    return@launch
+                }
+                
                 val appLimitManager = AppLimitManager(this@UsageTrackingJobService)
 
                 // Check all app limits
@@ -41,7 +54,6 @@ class UsageTrackingJobService : JobService() {
                 Log.d(TAG, "Checked limits for ${limitStatuses.size} apps")
 
                 // Ensure monitoring service is running if session is active
-                val focusManager = FocusModeManager.getInstance(this@UsageTrackingJobService)
                 if (focusManager.isSessionActive()) {
                     ensureMonitoringServiceRunning()
                 }

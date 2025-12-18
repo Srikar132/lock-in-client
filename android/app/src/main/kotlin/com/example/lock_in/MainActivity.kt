@@ -114,26 +114,71 @@ class MainActivity: FlutterActivity() {
                     "startFocusSession" -> {
                         val sessionData = arguments as? Map<String, Any>
                         if (sessionData != null) {
-                            val success = focusModeManager.startSession(sessionData)
-                            result.success(success)
+                            scope.launch {
+                                try {
+                                    Log.d(TAG, "Starting focus session with data: $sessionData")
+                                    val success = focusModeManager.startSession(sessionData)
+                                    withContext(Dispatchers.Main) {
+                                        result.success(success)
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Error starting focus session", e)
+                                    withContext(Dispatchers.Main) {
+                                        result.error("START_SESSION_ERROR", e.message, null)
+                                    }
+                                }
+                            }
                         } else {
                             result.error("INVALID_ARGUMENT", "Session data is required", null)
                         }
                     }
 
                     "pauseFocusSession" -> {
-                        val success = focusModeManager.pauseSession()
-                        result.success(success)
+                        scope.launch {
+                            try {
+                                val success = focusModeManager.pauseSession()
+                                withContext(Dispatchers.Main) {
+                                    result.success(success)
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error pausing session", e)
+                                withContext(Dispatchers.Main) {
+                                    result.error("PAUSE_SESSION_ERROR", e.message, null)
+                                }
+                            }
+                        }
                     }
 
                     "resumeFocusSession" -> {
-                        val success = focusModeManager.resumeSession()
-                        result.success(success)
+                        scope.launch {
+                            try {
+                                val success = focusModeManager.resumeSession()
+                                withContext(Dispatchers.Main) {
+                                    result.success(success)
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error resuming session", e)
+                                withContext(Dispatchers.Main) {
+                                    result.error("RESUME_SESSION_ERROR", e.message, null)
+                                }
+                            }
+                        }
                     }
 
                     "endFocusSession" -> {
-                        val success = focusModeManager.endSession()
-                        result.success(success)
+                        scope.launch {
+                            try {
+                                val success = focusModeManager.endSession()
+                                withContext(Dispatchers.Main) {
+                                    result.success(success)
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error ending session", e)
+                                withContext(Dispatchers.Main) {
+                                    result.error("END_SESSION_ERROR", e.message, null)
+                                }
+                            }
+                        }
                     }
 
                     "getCurrentSessionStatus" -> {
