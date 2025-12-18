@@ -123,7 +123,7 @@ class AuthNotifier extends Notifier<AuthState> {
       await _userRepository.updateOnboardingAnswers(
         uid: userId,
         procrastinationLevel: procrastinationLevel,
-        distractions: distractions,
+        distractions: distractions, 
         preferredStudyTime: preferredStudyTime,
       );
 
