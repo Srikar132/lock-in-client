@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lock_in/data/models/user_model.dart';
 
 class UserRepository {
@@ -17,6 +18,11 @@ class UserRepository {
       debugPrint('Error getting user data: $e');
       return null;
     }
+  }
+
+  // Get user by ID (alias for getUserData for consistency)
+  Future<UserModel?> getUserById(String uid) async {
+    return getUserData(uid);
   }
 
   // Update user onboarding status
@@ -51,7 +57,7 @@ class UserRepository {
     String? preferredStudyTime,
   }) async {
     try {
-      Map<String, dynamic>  updates = {};
+      Map<String, dynamic> updates = {};
 
       if (procrastinationLevel != null) {
         updates['procrastinationLevel'] = procrastinationLevel;
@@ -136,3 +142,8 @@ class UserRepository {
     }
   }
 }
+
+/// Provider for UserRepository
+final userRepositoryProvider = Provider<UserRepository>((ref) {
+  return UserRepository();
+});

@@ -14,6 +14,7 @@ import 'package:lock_in/presentation/screens/permission_screen.dart';
 import 'package:lock_in/data/models/user_settings_model.dart';
 import 'package:lock_in/widgets/focus_timer_widget.dart';
 import 'package:lock_in/widgets/lumo_mascot_widget.dart';
+import 'package:lock_in/widgets/world_boss_widget.dart';
 import 'package:lock_in/presentation/screens/profile_screen.dart';
 import 'dart:math';
 
@@ -252,7 +253,12 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                           // Custom Header
                           _buildHeader(context, user),
 
-                          const SizedBox(height: 100),
+                          const SizedBox(height: 20),
+
+                          // World Boss Challenge Widget
+                          const WorldBossWidget(),
+
+                          const SizedBox(height: 20),
 
                           // Focus Timer Widget - now with settings data
                           settingsAsync.when(

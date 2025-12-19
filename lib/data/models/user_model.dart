@@ -8,26 +8,27 @@ class UserModel {
   final DateTime createdAt;
   final DateTime lastLoginAt;
 
-
   // User status
   final bool hasCompletedOnboarding;
   final bool hasGrantedPermissions;
-  
+
   // Onboarding data
-  final String? procrastinationLevel; 
-  final List<String>? distractions; 
-  final String? preferredStudyTime; 
+  final String? procrastinationLevel;
+  final List<String>? distractions;
+  final String? preferredStudyTime;
 
-
-    // === QUICK STATS (for dashboard) ===
+  // === QUICK STATS (for dashboard) ===
   final int totalFocusTime; // milliseconds
   final int totalSessions;
   final int currentStreak;
   final int longestStreak;
   final DateTime? lastActiveDate;
 
+  // === GAMIFICATION (Challenges) ===
+  final DateTime? unbreakableBadgeExpiry; // 24-hour badge from survival mode
+  final List<String> unlockedThemes; // Unlocked theme IDs (e.g., 'focusLegend')
 
-UserModel({
+  UserModel({
     required this.uid,
     required this.email,
     this.displayName,
@@ -44,6 +45,8 @@ UserModel({
     this.currentStreak = 0,
     this.longestStreak = 0,
     this.lastActiveDate,
+    this.unbreakableBadgeExpiry,
+    this.unlockedThemes = const [],
   });
 
   // Convert to Firestore document
@@ -64,33 +67,44 @@ UserModel({
       'totalSessions': totalSessions,
       'currentStreak': currentStreak,
       'longestStreak': longestStreak,
-      'lastActiveDate': lastActiveDate != null 
-          ? Timestamp.fromDate(lastActiveDate!) 
+      'lastActiveDate': lastActiveDate != null
+          ? Timestamp.fromDate(lastActiveDate!)
           : null,
+      'unbreakableBadgeExpiry': unbreakableBadgeExpiry != null
+          ? Timestamp.fromDate(unbreakableBadgeExpiry!)
+          : null,
+      'unlockedThemes': unlockedThemes,
     };
   }
 
   // Create from Firestore document
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
-    
+
     return UserModel(
       uid: data['uid'] ?? '',
       email: data['email'] ?? '',
       displayName: data['displayName'],
       photoURL: data['photoURL'],
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      lastLoginAt: (data['lastLoginAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lastLoginAt:
+          (data['lastLoginAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       hasCompletedOnboarding: data['hasCompletedOnboarding'] ?? false,
       hasGrantedPermissions: data['hasGrantedPermissions'] ?? false,
       procrastinationLevel: data['procrastinationLevel'],
-      distractions: data['distractions'] != null 
-          ? List<String>.from(data['distractions']) 
+      distractions: data['distractions'] != null
+          ? List<String>.from(data['distractions'])
           : null,
       preferredStudyTime: data['preferredStudyTime'],
       totalFocusTime: data['totalFocusTime'] ?? 0,
       totalSessions: data['totalSessions'] ?? 0,
       currentStreak: data['currentStreak'] ?? 0,
+      unbreakableBadgeExpiry: data['unbreakableBadgeExpiry'] != null
+          ? (data['unbreakableBadgeExpiry'] as Timestamp).toDate()
+          : null,
+      unlockedThemes: data['unlockedThemes'] != null
+          ? List<String>.from(data['unlockedThemes'])
+          : [],
       longestStreak: data['longestStreak'] ?? 0,
       lastActiveDate: data['lastActiveDate'] != null
           ? (data['lastActiveDate'] as Timestamp).toDate()
@@ -110,6 +124,8 @@ UserModel({
     bool? hasGrantedPermissions,
     String? procrastinationLevel,
     List<String>? distractions,
+    DateTime? unbreakableBadgeExpiry,
+    List<String>? unlockedThemes,
     String? preferredStudyTime,
     int? totalFocusTime,
     int? totalSessions,
@@ -124,8 +140,13 @@ UserModel({
       photoURL: photoURL ?? this.photoURL,
       createdAt: createdAt ?? this.createdAt,
       lastLoginAt: lastLoginAt ?? this.lastLoginAt,
-      hasCompletedOnboarding: hasCompletedOnboarding ?? this.hasCompletedOnboarding,
-      hasGrantedPermissions: hasGrantedPermissions ?? this.hasGrantedPermissions,
+      hasCompletedOnboarding:
+          hasCompletedOnboarding ?? this.hasCompletedOnboarding,
+      hasGrantedPermissions:
+          hasGrantedPermissions ?? this.hasGrantedPermissions,
+      unbreakableBadgeExpiry:
+          unbreakableBadgeExpiry ?? this.unbreakableBadgeExpiry,
+      unlockedThemes: unlockedThemes ?? this.unlockedThemes,
       procrastinationLevel: procrastinationLevel ?? this.procrastinationLevel,
       distractions: distractions ?? this.distractions,
       preferredStudyTime: preferredStudyTime ?? this.preferredStudyTime,
@@ -138,8 +159,19 @@ UserModel({
   }
 
   // Helper methods
+
+  /// Check if user has active "Unbreakable" badge
+  bool get hasUnbreakableBadge {
+    if (unbreakableBadgeExpiry == null) return false;
+    return DateTime.now().isBefore(unbreakableBadgeExpiry!);
+  }
+
+  /// Check if user has unlocked a specific theme
+  bool hasTheme(String themeId) => unlockedThemes.contains(themeId);
+
+  // Helper methods
   String get firstName => displayName?.split(' ').first ?? 'User';
-  
+
   bool get isOnboardingComplete => hasCompletedOnboarding;
   bool get isPermissionsGranted => hasGrantedPermissions;
   bool get isSetupComplete => hasCompletedOnboarding && hasGrantedPermissions;
@@ -148,7 +180,7 @@ UserModel({
   String get formattedTotalFocusTime {
     final hours = totalFocusTime ~/ (1000 * 60 * 60);
     final minutes = (totalFocusTime % (1000 * 60 * 60)) ~/ (1000 * 60);
-    
+
     if (hours > 0) {
       return '${hours}h ${minutes}m';
     }

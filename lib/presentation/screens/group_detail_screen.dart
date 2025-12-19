@@ -5,6 +5,8 @@ import 'package:lock_in/data/models/group_model.dart';
 import 'package:lock_in/data/models/group_member_model.dart';
 import 'package:lock_in/presentation/providers/group_provider.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
+import 'package:lock_in/presentation/providers/challenge_provider.dart';
+import 'package:lock_in/presentation/screens/survival_lobby_screen.dart';
 
 /// Generate consistent color for group based on name
 Color _getGroupColor(String groupName) {
@@ -20,12 +22,12 @@ Color _getGroupColor(String groupName) {
     const Color(0xFF81C784), // Light Green
     const Color(0xFF64B5F6), // Light Blue
   ];
-  
+
   int hash = 0;
   for (int i = 0; i < groupName.length; i++) {
     hash = groupName.codeUnitAt(i) + ((hash << 5) - hash);
   }
-  
+
   return colors[hash.abs() % colors.length];
 }
 
@@ -75,149 +77,145 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
             headerSliverBuilder: (context, innerBoxIsScrolled) {
               return [
                 SliverAppBar(
-                expandedHeight: 220,
-                pinned: true,
-                stretch: true,
-                backgroundColor: const Color(0xFF1A1A1A),
-                leading: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: () => Navigator.pop(context),
-                ),
-                actions: [
-                  if (isMember)
-                    IconButton(
-                      icon: const Icon(Icons.share, color: Colors.white),
-                      onPressed: () => _shareGroup(group),
-                    ),
-                  if (isAdmin)
-                    PopupMenuButton<String>(
-                      icon: const Icon(Icons.more_vert, color: Colors.white),
-                      color: const Color(0xFF2D2D2D),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      onSelected: (value) {
-                        if (value == 'delete' && isCreator) _deleteGroup(group);
-                      },
-                      itemBuilder: (context) => [
-                        if (isCreator)
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Row(
-                              children: [
-                                Icon(Icons.delete, color: Colors.red),
-                                SizedBox(width: 8),
-                                Text('Delete Group', style: TextStyle(color: Colors.white)),
-                              ],
+                  expandedHeight: 220,
+                  pinned: true,
+                  stretch: true,
+                  backgroundColor: const Color(0xFF1A1A1A),
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  actions: [
+                    if (isMember)
+                      IconButton(
+                        icon: const Icon(Icons.share, color: Colors.white),
+                        onPressed: () => _shareGroup(group),
+                      ),
+                    if (isAdmin)
+                      PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_vert, color: Colors.white),
+                        color: const Color(0xFF2D2D2D),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        onSelected: (value) {
+                          if (value == 'delete' && isCreator)
+                            _deleteGroup(group);
+                        },
+                        itemBuilder: (context) => [
+                          if (isCreator)
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.delete, color: Colors.red),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Delete Group',
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                      ],
-                    ),
-                ],
-                flexibleSpace: FlexibleSpaceBar(
-                  background: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          const Color(0xFF82D65D).withOpacity(0.3),
-                          const Color(0xFF1A1A1A),
                         ],
                       ),
-                    ),
-                    child: SafeArea(
-                      child: Align(
-                        alignment: Alignment.bottomLeft,
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 60,
-                                height: 60,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      _getGroupColor(group.name),
-                                      _getGroupColor(group.name).withOpacity(0.7),
-                                    ],
-                                  ),
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: _getGroupColor(group.name).withOpacity(0.4),
-                                      blurRadius: 15,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    group.name.isNotEmpty ? group.name[0].toUpperCase() : 'G',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 28,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                group.name,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 6),
-                              Wrap(
-                                spacing: 8,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(Icons.people, color: Colors.white, size: 12),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '${group.memberIds.length} members',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
+                  ],
+                  flexibleSpace: FlexibleSpaceBar(
+                    background: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            const Color(0xFF82D65D).withOpacity(0.3),
+                            const Color(0xFF1A1A1A),
+                          ],
+                        ),
+                      ),
+                      child: SafeArea(
+                        child: Align(
+                          alignment: Alignment.bottomLeft,
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 60,
+                                  height: 60,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        _getGroupColor(group.name),
+                                        _getGroupColor(
+                                          group.name,
+                                        ).withOpacity(0.7),
                                       ],
                                     ),
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: _getGroupColor(
+                                          group.name,
+                                        ).withOpacity(0.4),
+                                        blurRadius: 15,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
                                   ),
-                                  if (group.settings.isPublic)
+                                  child: Center(
+                                    child: Text(
+                                      group.name.isNotEmpty
+                                          ? group.name[0].toUpperCase()
+                                          : 'G',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 28,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  group.name,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 8,
+                                  children: [
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF82D65D).withOpacity(0.2),
+                                        color: Colors.white.withOpacity(0.2),
                                         borderRadius: BorderRadius.circular(12),
                                       ),
-                                      child: const Row(
+                                      child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Icon(Icons.public, color: Color(0xFF82D65D), size: 12),
-                                          SizedBox(width: 4),
+                                          const Icon(
+                                            Icons.people,
+                                            color: Colors.white,
+                                            size: 12,
+                                          ),
+                                          const SizedBox(width: 4),
                                           Text(
-                                            'Public',
-                                            style: TextStyle(
-                                              color: Color(0xFF82D65D),
+                                            '${group.memberIds.length} members',
+                                            style: const TextStyle(
+                                              color: Colors.white,
                                               fontSize: 11,
                                               fontWeight: FontWeight.w600,
                                             ),
@@ -225,96 +223,165 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                                         ],
                                       ),
                                     ),
-                                ],
-                              ),
-                            ],
+                                    if (group.settings.isPublic)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                            0xFF82D65D,
+                                          ).withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.public,
+                                              color: Color(0xFF82D65D),
+                                              size: 12,
+                                            ),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              'Public',
+                                              style: TextStyle(
+                                                color: Color(0xFF82D65D),
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
 
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatCard(
-                          icon: Icons.access_time,
-                          label: 'Total Focus',
-                          value: group.getFormattedFocusTime(),
-                          color: const Color(0xFF82D65D),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildStatCard(
-                          icon: Icons.emoji_events,
-                          label: 'Daily Goal',
-                          value: group.settings.focusGoalMinutes > 0
-                              ? '${group.settings.focusGoalMinutes}m'
-                              : 'None',
-                          color: Colors.amber,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Container(
+                SliverToBoxAdapter(
+                  child: Padding(
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2D2D2D),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white.withOpacity(0.1)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
                       children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF82D65D).withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Icon(Icons.description, color: Color(0xFF82D65D), size: 16),
-                            ),
-                            const SizedBox(width: 10),
-                            const Text(
-                              'About',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
+                        Expanded(
+                          child: _buildStatCard(
+                            icon: Icons.access_time,
+                            label: 'Total Focus',
+                            value: group.getFormattedFocusTime(),
+                            color: const Color(0xFF82D65D),
+                          ),
                         ),
-                        const SizedBox(height: 10),
-                        Text(
-                          group.description,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 13,
-                            height: 1.5,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildStatCard(
+                            icon: Icons.emoji_events,
+                            label: 'Daily Goal',
+                            value: group.settings.focusGoalMinutes > 0
+                                ? '${group.settings.focusGoalMinutes}m'
+                                : 'None',
+                            color: Colors.amber,
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-              ),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2D2D2D),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.1),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFF82D65D,
+                                  ).withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Icon(
+                                  Icons.description,
+                                  color: Color(0xFF82D65D),
+                                  size: 16,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              const Text(
+                                'About',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            group.description,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13,
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+                // Survival Mode Challenge Button
+                if (isMember)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () =>
+                              _startSurvivalChallenge(context, group),
+                          icon: const Icon(Icons.bolt, size: 20),
+                          label: const Text('Start Survival Mode Challenge'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.deepOrange,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                const SliverToBoxAdapter(child: SizedBox(height: 16)),
               ];
             },
             body: membersAsync.when(
@@ -330,8 +397,14 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                         indicatorColor: const Color(0xFF82D65D),
                         indicatorWeight: 3,
                         tabs: const [
-                          Tab(icon: Icon(Icons.people, size: 20), text: 'Members'),
-                          Tab(icon: Icon(Icons.emoji_events, size: 20), text: 'Leaderboard'),
+                          Tab(
+                            icon: Icon(Icons.people, size: 20),
+                            text: 'Members',
+                          ),
+                          Tab(
+                            icon: Icon(Icons.emoji_events, size: 20),
+                            text: 'Leaderboard',
+                          ),
                         ],
                       ),
                     ),
@@ -351,11 +424,14 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
               loading: () => const Center(
                 child: CircularProgressIndicator(color: Color(0xFF82D65D)),
               ),
-              error: (error, stack) => _buildErrorState('Error loading members: $error'),
+              error: (error, stack) =>
+                  _buildErrorState('Error loading members: $error'),
             ),
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFF82D65D))),
+        loading: () => const Center(
+          child: CircularProgressIndicator(color: Color(0xFF82D65D)),
+        ),
         error: (error, stack) => _buildErrorState('Error: $error'),
       ),
       bottomNavigationBar: groupAsync.whenData((group) {
@@ -422,7 +498,9 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
 
   Widget _buildMembersTab(List<GroupMemberModel> members, GroupModel group) {
     if (members.isEmpty) {
-      return const Center(child: Text('No members yet', style: TextStyle(color: Colors.white54)));
+      return const Center(
+        child: Text('No members yet', style: TextStyle(color: Colors.white54)),
+      );
     }
 
     return ListView.builder(
@@ -472,9 +550,16 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                         decoration: BoxDecoration(
                           color: const Color(0xFF82D65D),
                           shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFF2D2D2D), width: 2),
+                          border: Border.all(
+                            color: const Color(0xFF2D2D2D),
+                            width: 2,
+                          ),
                         ),
-                        child: const Icon(Icons.star, color: Colors.black, size: 12),
+                        child: const Icon(
+                          Icons.star,
+                          color: Colors.black,
+                          size: 12,
+                        ),
                       ),
                     ),
                 ],
@@ -500,7 +585,10 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                         if (isCreator) ...[
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFF82D65D).withOpacity(0.2),
                               borderRadius: BorderRadius.circular(4),
@@ -517,7 +605,10 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                         ] else if (isAdmin) ...[
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.amber.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(4),
@@ -537,11 +628,18 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(Icons.access_time, color: Colors.white54, size: 12),
+                        const Icon(
+                          Icons.access_time,
+                          color: Colors.white54,
+                          size: 12,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           '${member.getFormattedFocusTime()} focused',
-                          style: const TextStyle(color: Colors.white54, fontSize: 12),
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),
@@ -555,15 +653,25 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
     );
   }
 
-  Widget _buildLeaderboardTab(List<GroupMemberModel> members, GroupModel group) {
+  Widget _buildLeaderboardTab(
+    List<GroupMemberModel> members,
+    GroupModel group,
+  ) {
     if (!group.settings.showLeaderboard) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.visibility_off, size: 64, color: Colors.white.withOpacity(0.3)),
+            Icon(
+              Icons.visibility_off,
+              size: 64,
+              color: Colors.white.withOpacity(0.3),
+            ),
             const SizedBox(height: 16),
-            const Text('Leaderboard is disabled', style: TextStyle(color: Colors.white54, fontSize: 16)),
+            const Text(
+              'Leaderboard is disabled',
+              style: TextStyle(color: Colors.white54, fontSize: 16),
+            ),
           ],
         ),
       );
@@ -572,7 +680,9 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
     final sortedMembers = List<GroupMemberModel>.from(members);
 
     if (sortedMembers.isEmpty) {
-      return const Center(child: Text('No members yet', style: TextStyle(color: Colors.white54)));
+      return const Center(
+        child: Text('No members yet', style: TextStyle(color: Colors.white54)),
+      );
     }
 
     return ListView.builder(
@@ -594,10 +704,10 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
             border: Border.all(
               color: rank <= 3
                   ? (rank == 1
-                      ? Colors.amber.withOpacity(0.5)
-                      : rank == 2
-                          ? Colors.grey.withOpacity(0.5)
-                          : Colors.brown.withOpacity(0.5))
+                        ? Colors.amber.withOpacity(0.5)
+                        : rank == 2
+                        ? Colors.grey.withOpacity(0.5)
+                        : Colors.brown.withOpacity(0.5))
                   : Colors.white.withOpacity(0.1),
               width: rank <= 3 ? 2 : 1,
             ),
@@ -610,10 +720,10 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                 decoration: BoxDecoration(
                   color: rank <= 3
                       ? (rank == 1
-                          ? Colors.amber.withOpacity(0.2)
-                          : rank == 2
-                              ? Colors.grey.withOpacity(0.2)
-                              : Colors.brown.withOpacity(0.2))
+                            ? Colors.amber.withOpacity(0.2)
+                            : rank == 2
+                            ? Colors.grey.withOpacity(0.2)
+                            : Colors.brown.withOpacity(0.2))
                       : const Color(0xFF82D65D).withOpacity(0.2),
                   shape: BoxShape.circle,
                 ),
@@ -647,7 +757,11 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(Icons.access_time, color: Color(0xFF82D65D), size: 14),
+                        const Icon(
+                          Icons.access_time,
+                          color: Color(0xFF82D65D),
+                          size: 14,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           member.getFormattedFocusTime(),
@@ -665,7 +779,11 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
               if (rank <= 3)
                 Icon(
                   Icons.emoji_events,
-                  color: rank == 1 ? Colors.amber : rank == 2 ? Colors.grey : Colors.brown,
+                  color: rank == 1
+                      ? Colors.amber
+                      : rank == 2
+                      ? Colors.grey
+                      : Colors.brown,
                   size: 24,
                 ),
             ],
@@ -682,7 +800,9 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
         onPressed: () => _joinGroup(group),
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF82D65D),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -710,7 +830,9 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
         onPressed: () => _leaveGroup(group),
         style: OutlinedButton.styleFrom(
           side: const BorderSide(color: Colors.red, width: 2),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -736,7 +858,11 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, size: 64, color: Colors.red.withOpacity(0.5)),
+          Icon(
+            Icons.error_outline,
+            size: 64,
+            color: Colors.red.withOpacity(0.5),
+          ),
           const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -749,7 +875,9 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
           const SizedBox(height: 24),
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF82D65D)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF82D65D),
+            ),
             child: const Text('Go Back', style: TextStyle(color: Colors.black)),
           ),
         ],
@@ -766,6 +894,51 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
       'Group ID: ${group.id}',
       subject: 'Join my focus group: ${group.name}',
     );
+  }
+
+  Future<void> _startSurvivalChallenge(
+    BuildContext context,
+    GroupModel group,
+  ) async {
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      // Create the challenge
+      final challengeId = await ref
+          .read(challengeProvider.notifier)
+          .createSurvivalChallenge(
+            groupId: group.id,
+            duration: const Duration(hours: 2),
+          );
+
+      if (mounted) {
+        // Close loading dialog
+        Navigator.pop(context);
+
+        // Navigate to survival lobby
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => SurvivalLobbyScreen(challengeId: challengeId),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error starting challenge: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _joinGroup(GroupModel group) async {
@@ -792,17 +965,16 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
             ),
             backgroundColor: const Color(0xFF82D65D),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -814,7 +986,10 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF2D2D2D),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Leave Group?', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Leave Group?',
+          style: TextStyle(color: Colors.white),
+        ),
         content: Text(
           'Are you sure you want to leave "${group.name}"?\n\nYour focus time contributions will remain.',
           style: const TextStyle(color: Colors.white70),
@@ -876,7 +1051,11 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                 color: Colors.red.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.delete_forever, color: Colors.red, size: 40),
+              child: const Icon(
+                Icons.delete_forever,
+                color: Colors.red,
+                size: 40,
+              ),
             ),
             const SizedBox(height: 16),
             const Text(
@@ -963,7 +1142,11 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
             ),
             child: const Text(
               'Delete Forever',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
             ),
           ),
         ],
@@ -1008,10 +1191,10 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
       if (mounted) {
         // Close loading dialog
         Navigator.pop(context);
-        
+
         // Navigate back to groups tab with smooth animation
         Navigator.pop(context);
-        
+
         // Show success message
         Future.delayed(const Duration(milliseconds: 300), () {
           if (mounted) {
@@ -1028,7 +1211,9 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                 ),
                 backgroundColor: const Color(0xFF82D65D),
                 behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 duration: const Duration(seconds: 3),
               ),
             );
@@ -1039,7 +1224,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
       if (mounted) {
         // Close loading dialog if open
         Navigator.pop(context);
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -1051,12 +1236,12 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
             ),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
     }
   }
 }
-
-

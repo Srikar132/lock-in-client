@@ -9,7 +9,7 @@ class AppTheme {
     brightness: Brightness.dark,
     colorScheme: const ColorScheme(
       brightness: Brightness.dark,
-      primary: Color(0xFF82D65D), 
+      primary: Color(0xFF82D65D),
       onPrimary: Color(0xFF1A1A1A),
       secondary: Color(0xFF8FD66E), // Lighter green for accents
       onSecondary: Color(0xFF1A1A1A),
@@ -71,21 +71,13 @@ class AppTheme {
         fontWeight: FontWeight.w500,
         color: Color(0xFFB0B0B0),
       ),
-      bodyLarge: TextStyle(
-        fontSize: 16,
-        color: Color(0xFFE0E0E0),
-        height: 1.5,
-      ),
+      bodyLarge: TextStyle(fontSize: 16, color: Color(0xFFE0E0E0), height: 1.5),
       bodyMedium: TextStyle(
         fontSize: 14,
         color: Color(0xFFB0B0B0),
         height: 1.5,
       ),
-      bodySmall: TextStyle(
-        fontSize: 12,
-        color: Color(0xFF8A8A8A),
-        height: 1.4,
-      ),
+      bodySmall: TextStyle(fontSize: 12, color: Color(0xFF8A8A8A), height: 1.4),
       labelLarge: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w600,
@@ -142,14 +134,8 @@ class AppTheme {
         borderRadius: BorderRadius.circular(16),
         borderSide: const BorderSide(color: Color(0xFFFF5252), width: 2),
       ),
-      labelStyle: const TextStyle(
-        color: Color(0xFF8A8A8A),
-        fontSize: 14,
-      ),
-      hintStyle: const TextStyle(
-        color: Color(0xFF6A6A6A),
-        fontSize: 14,
-      ),
+      labelStyle: const TextStyle(color: Color(0xFF8A8A8A), fontSize: 14),
+      hintStyle: const TextStyle(color: Color(0xFF6A6A6A), fontSize: 14),
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
@@ -158,9 +144,7 @@ class AppTheme {
         foregroundColor: const Color(0xFF1A1A1A),
         disabledBackgroundColor: const Color(0xFF3A3A3A),
         disabledForegroundColor: const Color(0xFF6A6A6A),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
         elevation: 0,
         shadowColor: Colors.transparent,
@@ -174,9 +158,7 @@ class AppTheme {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         side: const BorderSide(color: Color(0xFF3A3A3A), width: 1.5),
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
         textStyle: const TextStyle(
@@ -189,9 +171,7 @@ class AppTheme {
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: const Color(0xFF7ED957),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         textStyle: const TextStyle(
           fontSize: 16,
@@ -213,9 +193,7 @@ class AppTheme {
     dialogTheme: DialogThemeData(
       backgroundColor: const Color(0xFF1E1E1E),
       elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       titleTextStyle: const TextStyle(
         color: Colors.white,
         fontSize: 20,
@@ -250,9 +228,7 @@ class AppTheme {
         fontWeight: FontWeight.w500,
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       side: BorderSide.none,
     ),
     switchTheme: SwitchThemeData(
@@ -290,10 +266,7 @@ class AppTheme {
     dividerColor: const Color(0xFF2A2A2A),
     splashColor: const Color(0x1A7ED957),
     highlightColor: const Color(0x0D7ED957),
-    iconTheme: const IconThemeData(
-      color: Colors.white,
-      size: 24,
-    ),
+    iconTheme: const IconThemeData(color: Colors.white, size: 24),
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
       backgroundColor: Color(0xFF7ED957),
       foregroundColor: Color(0xFF1A1A1A),
@@ -324,26 +297,15 @@ class AppTheme {
       }),
       iconTheme: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return const IconThemeData(
-            color: Color(0xFF7ED957),
-            size: 26,
-          );
+          return const IconThemeData(color: Color(0xFF7ED957), size: 26);
         }
-        return const IconThemeData(
-          color: Color(0xFF6A6A6A),
-          size: 26,
-        );
+        return const IconThemeData(color: Color(0xFF6A6A6A), size: 26);
       }),
     ),
     snackBarTheme: SnackBarThemeData(
       backgroundColor: const Color(0xFF2A2A2A),
-      contentTextStyle: const TextStyle(
-        color: Colors.white,
-        fontSize: 14,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      contentTextStyle: const TextStyle(color: Colors.white, fontSize: 14),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       behavior: SnackBarBehavior.floating,
       elevation: 0,
     ),
@@ -359,12 +321,152 @@ class AppTheme {
     badgeTheme: const BadgeThemeData(
       backgroundColor: Color(0xFF7ED957),
       textColor: Color(0xFF1A1A1A),
-      textStyle: TextStyle(
-        fontSize: 10,
-        fontWeight: FontWeight.w600,
-      ),
+      textStyle: TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
     ),
   );
+
+  // Focus Legend Theme (Gold/Dark Material 3) - Unlocked via World Boss
+  static ThemeData focusLegendTheme = ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.dark,
+    colorScheme: const ColorScheme(
+      brightness: Brightness.dark,
+      primary: Color(0xFFFFD700), // Gold
+      onPrimary: Color(0xFF1A1A1A),
+      secondary: Color(0xFFFFA500), // Orange-gold accent
+      onSecondary: Color(0xFF1A1A1A),
+      tertiary: Color(0xFFDAA520), // Goldenrod
+      onTertiary: Color(0xFF1A1A1A),
+      error: Color(0xFFFF5252),
+      onError: Colors.white,
+      surface: Color(0xFF1A1A1A), // Darker card surface
+      onSurface: Color(0xFFFFFFFF),
+      surfaceContainerHighest: Color(0xFF2A2A2A),
+      outline: Color(0xFF3A3A3A),
+      shadow: Color(0xFF000000),
+    ),
+    textTheme: const TextTheme(
+      displayLarge: TextStyle(
+        fontSize: 32,
+        fontWeight: FontWeight.bold,
+        color: Color(0xFFFFD700), // Gold text for headers
+        letterSpacing: -0.5,
+      ),
+      displayMedium: TextStyle(
+        fontSize: 28,
+        fontWeight: FontWeight.bold,
+        color: Color(0xFFFFD700),
+        letterSpacing: -0.5,
+      ),
+      displaySmall: TextStyle(
+        fontSize: 24,
+        fontWeight: FontWeight.w600,
+        color: Color(0xFFFFD700),
+      ),
+      headlineLarge: TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.w600,
+        color: Colors.white,
+      ),
+      headlineMedium: TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.w600,
+        color: Colors.white,
+      ),
+      titleLarge: TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.w600,
+        color: Colors.white,
+      ),
+      titleMedium: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        color: Colors.white,
+      ),
+      bodyLarge: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w400,
+        color: Color(0xFFE0E0E0),
+        height: 1.5,
+      ),
+      bodyMedium: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+        color: Color(0xFFB0B0B0),
+        height: 1.5,
+      ),
+    ),
+    appBarTheme: const AppBarTheme(
+      backgroundColor: Color(0xFF0A0A0A),
+      foregroundColor: Color(0xFFFFD700),
+      elevation: 0,
+      centerTitle: true,
+      titleTextStyle: TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.w600,
+        color: Color(0xFFFFD700),
+      ),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFFFFD700),
+        foregroundColor: const Color(0xFF1A1A1A),
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        textStyle: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.5,
+        ),
+      ),
+    ),
+    cardTheme: CardThemeData(
+      color: const Color(0xFF1A1A1A),
+      elevation: 0,
+      shadowColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: Color(0xFF3A3A3A), width: 1),
+      ),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    ),
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: Color(0xFFFFD700),
+      linearTrackColor: Color(0xFF3A3A3A),
+      circularTrackColor: Color(0xFF3A3A3A),
+    ),
+    scaffoldBackgroundColor: const Color(0xFF0A0A0A), // Even darker background
+    dividerColor: const Color(0xFF2A2A2A),
+    splashColor: const Color(0x1AFFD700),
+    highlightColor: const Color(0x0DFFD700),
+    iconTheme: const IconThemeData(color: Color(0xFFFFD700), size: 24),
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: Color(0xFFFFD700),
+      foregroundColor: Color(0xFF1A1A1A),
+      elevation: 0,
+      highlightElevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(16)),
+      ),
+    ),
+    badgeTheme: const BadgeThemeData(
+      backgroundColor: Color(0xFFFFD700),
+      textColor: Color(0xFF1A1A1A),
+      textStyle: TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+    ),
+  );
+
+  /// Get theme by ID
+  static ThemeData getTheme(String themeId) {
+    switch (themeId) {
+      case 'focusLegend':
+        return focusLegendTheme;
+      case 'dark':
+      default:
+        return darkTheme;
+    }
+  }
 }
 
 // Optional: Color constants file
@@ -374,31 +476,33 @@ class AppColors {
   static const primaryGreen = Color(0xFF82D65D); // Main lime green
   static const lightGreen = Color(0xFF8FD66E); // Lighter variant
   static const darkGreen = Color(0xFF5CAF3C); // Darker variant
-  
+
   // Background Colors
   static const background = Color(0xFF0F0F0F); // Main dark background
   static const surface = Color(0xFF1E1E1E); // Cards and elevated surfaces
   static const surfaceElevated = Color(0xFF2A2A2A); // More elevated
-  
+
   // Text Colors
   static const textPrimary = Color(0xFFFFFFFF); // White
   static const textSecondary = Color(0xFFE0E0E0); // Light gray
   static const textTertiary = Color(0xFFB0B0B0); // Medium gray
   static const textMuted = Color(0xFF8A8A8A); // Muted gray
   static const textDisabled = Color(0xFF6A6A6A); // Disabled gray
-  
+
   // Border & Divider
   static const border = Color(0xFF3A3A3A);
   static const divider = Color(0xFF2A2A2A);
-  
+
   // Status Colors
   static const error = Color(0xFFFF5252);
   static const success = Color(0xFF7ED957);
   static const warning = Color(0xFFFFB84D);
   static const info = Color(0xFF64B5F6);
-  
+
   // Special
-  static const activeIndicator = Color(0xFF7ED957); // Green dot for "focusing now"
+  static const activeIndicator = Color(
+    0xFF7ED957,
+  ); // Green dot for "focusing now"
   static const buttonWhite = Color(0xFFFFFFFF); // White buttons
   static const proYellow = Color(0xFFFFD700); // PRO badge
 }

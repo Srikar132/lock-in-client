@@ -19,6 +19,7 @@ class GeminiVoiceService {
   bool _isSpeaking = false;
 
   String _accumulatedResponse = '';
+  String? _customSystemPrompt; // For challenge-specific prompts
 
   Stream<String> get transcriptStream => _transcriptController.stream;
   Stream<String> get responseStream => _responseController.stream;
@@ -148,6 +149,11 @@ class GeminiVoiceService {
       final url = Uri.parse(
         '${VoiceApiConfig.chatUrl}${VoiceApiConfig.apiKey}',
       );
+
+      // Use custom prompt if set, otherwise use default
+      final systemPrompt =
+          _customSystemPrompt ?? VoiceApiConfig.systemInstruction;
+
       final body = jsonEncode({
         'contents': [
           {
@@ -162,7 +168,7 @@ class GeminiVoiceService {
         },
         'systemInstruction': {
           'parts': [
-            {'text': VoiceApiConfig.systemInstruction},
+            {'text': systemPrompt},
           ],
         },
       });
@@ -256,5 +262,94 @@ class GeminiVoiceService {
     await _transcriptController.close();
     await _responseController.close();
     await _stateController.close();
+  }
+
+  // ==================== CHALLENGE NARRATION ====================
+
+  /// Update system prompt for Survival Mode
+  void setSurvivalModeContext({
+    required int survivorsLeft,
+    required int totalParticipants,
+    required Duration timeRemaining,
+  }) {
+    final hours = timeRemaining.inHours;
+    final minutes = timeRemaining.inMinutes % 60;
+
+    _customSystemPrompt =
+        '''
+You are Lumo, narrating a high-stakes "Deep Work Survival Mode" challenge.
+Currently, $survivorsLeft out of $totalParticipants participants are still active.
+Time remaining: ${hours}h ${minutes}m.
+
+Be dramatic and motivational like a sports commentator. Keep responses under 50 words.
+Celebrate survivors, acknowledge knockouts professionally, and build tension as time runs out.
+Examples: "Only $survivorsLeft warriors remain! The tension is incredible!" or "Stay focused - the finish line is in sight!"
+''';
+
+    print('🔥 Lumo: Survival Mode context updated - $survivorsLeft survivors');
+  }
+
+  /// Update system prompt for World Boss battle
+  void setWorldBossContext({
+    required String bossName,
+    required double bossHPPercentage,
+    required int userContribution,
+    required int minimumContribution,
+  }) {
+    final hpPercent = (bossHPPercentage * 100).toInt();
+    final contributionPercent = ((userContribution / minimumContribution) * 100)
+        .toInt();
+
+    _customSystemPrompt =
+        '''
+You are Lumo, serving as the battle commentator for a community-wide boss fight against "$bossName".
+Current boss HP: $hpPercent%
+User's contribution: $userContribution minutes ($contributionPercent% toward qualification)
+Minimum needed: $minimumContribution minutes
+
+Be energetic like a battle narrator. Keep responses under 50 words.
+Encourage the user to deal more damage, celebrate milestones, and announce when boss phases change.
+Examples: "The boss is at $hpPercent% HP! Your contribution is making a real difference!" or "Just ${minimumContribution - userContribution} more minutes to qualify for the legendary reward!"
+''';
+
+    print('⚔️ Lumo: World Boss context updated - $hpPercent% HP remaining');
+  }
+
+  /// Provide a battle update announcement
+  Future<void> announceBattleUpdate(String message) async {
+    if (!_isInitialized) return;
+
+    _responseController.add(message);
+    await _speakResponse(message);
+    print('📢 Lumo: $message');
+  }
+
+  /// Announce survival mode knockout
+  Future<void> announceKnockout(String userName) async {
+    final message = "$userName has been knocked out! Stay strong, survivors!";
+    await announceBattleUpdate(message);
+  }
+
+  /// Announce boss HP milestone
+  Future<void> announceBossMilestone(int hpPercent) async {
+    String message;
+    if (hpPercent == 50) {
+      message = "The boss is at half health! Keep pushing!";
+    } else if (hpPercent == 25) {
+      message = "Only 25% HP left! The boss is weakening!";
+    } else if (hpPercent == 10) {
+      message = "10% HP remaining! Give it everything you've got!";
+    } else if (hpPercent <= 0) {
+      message = "🎉 BOSS DEFEATED! Incredible work, community!";
+    } else {
+      message = "Boss HP: $hpPercent%";
+    }
+    await announceBattleUpdate(message);
+  }
+
+  /// Clear custom prompt and return to normal
+  void clearChallengeContext() {
+    _customSystemPrompt = null;
+    print('🔄 Lumo: Returned to normal mode');
   }
 }

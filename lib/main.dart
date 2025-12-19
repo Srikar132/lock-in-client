@@ -6,10 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lock_in/core/theme/app_theme.dart';
 import 'package:lock_in/presentation/screens/splash_screen.dart';
 import 'package:lock_in/services/focus_session_service.dart';
+import 'package:lock_in/core/utils/initialize_world_boss.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -40,6 +40,7 @@ void main() async {
 
   // Note: Removed Hive initialization - Firebase handles all caching now
   // await HiveService.init(); // Commented out since we're using Firebase-only approach
+// await initializeWorldBoss();
 
   runApp(const ProviderScope(child: LockInApp()));
 }

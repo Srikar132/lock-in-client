@@ -299,6 +299,9 @@ class LockInAccessibilityService : AccessibilityService() {
         try {
             val currentTime = System.currentTimeMillis()
             
+            // Send challenge_failed event for survival mode
+            sendChallengeFailedEvent(packageName, "blocked_website", url)
+            
             // Prevent spam blocking with cooldown
             if (currentTime - lastBlockTime < BLOCK_COOLDOWN_MS) {
                 Log.d(TAG, "Website blocking on cooldown, skipping...")
@@ -524,6 +527,39 @@ class LockInAccessibilityService : AccessibilityService() {
             sendBroadcast(intent)
         } catch (e: Exception) {
             Log.e(TAG, "Error sending event to Flutter", e)
+        }
+    }
+    
+    /**
+     * Send challenge_failed event to Flutter for Survival Mode
+     * This is called when user attempts to access blocked content during a challenge
+     */
+    private fun sendChallengeFailedEvent(packageName: String, reason: String, url: String? = null) {
+        try {
+            val event = mutableMapOf<String, Any>(
+                "type" to "challenge_failed",
+                "package_name" to packageName,
+                "reason" to reason,
+                "timestamp" to System.currentTimeMillis()
+            )
+            
+            if (url != null) {
+                event["url"] = url
+            }
+            
+            Log.i(TAG, "🚨 Challenge Failed Event: $reason for $packageName")
+            
+            // Send to Flutter via broadcast
+            val intent = Intent("com.lockin.CHALLENGE_FAILED").apply {
+                putExtra("event_data", HashMap(event))
+            }
+            sendBroadcast(intent)
+            
+            // Also send via the generic event mechanism
+            sendEventToFlutter(event)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error sending challenge failed event", e)
         }
     }
     
@@ -1245,6 +1281,9 @@ class LockInAccessibilityService : AccessibilityService() {
     private fun blockShortFormContent(packageName: String) {
         try {
             Log.d(TAG, "Short-form content detected for $packageName - showing blocking overlay")
+            
+            // Send challenge_failed event for survival mode
+            sendChallengeFailedEvent(packageName, "short_form_content")
             
             when (packageName) {
                 "com.google.android.youtube" -> {
