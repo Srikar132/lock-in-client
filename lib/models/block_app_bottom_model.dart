@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lock_in/data/models/installed_app_model.dart';
 import 'package:lock_in/presentation/providers/app_management_provide.dart';
 import 'package:lock_in/presentation/providers/blocked_content_provider.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
+import 'package:lock_in/presentation/providers/parental_control_provider.dart';
+import 'package:lock_in/widgets/parental_control_dialogs.dart';
 
 // ============================================================================
 // FIXED: BlockAppsSheet with keyboard handling
@@ -218,6 +221,54 @@ class _CategorySectionState extends ConsumerState<_CategorySection>
                       onChanged: (bool value) async {
                         if (user == null) return;
                         
+                        // Check if trying to unblock and parental mode is enabled
+                        if (!value && areAllBlocked) {
+                          // Check parental control status
+                          final parentalControlDoc = await FirebaseFirestore.instance
+                              .collection('parental_controls')
+                              .doc(user.uid)
+                              .get();
+                          
+                          if (parentalControlDoc.exists) {
+                            final data = parentalControlDoc.data();
+                            final isEnabled = data?['isEnabled'] as bool? ?? false;
+                            
+                            if (isEnabled && context.mounted) {
+                              // Show PIN dialog
+                              final verified = await showDialog<bool>(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (context) => VerifyPasswordDialog(
+                                  title: 'Parental Control',
+                                  description: 'Enter PIN to unblock apps',
+                                  onVerify: (password) async {
+                                    final service = ref.read(
+                                      parentalControlServiceProvider,
+                                    );
+                                    return await service.verifyPassword(
+                                      userId: user.uid,
+                                      password: password,
+                                    );
+                                  },
+                                ),
+                              );
+
+                              if (verified != true) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('❌ Incorrect PIN or cancelled'),
+                                      backgroundColor: Colors.red,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                                return;
+                              }
+                            }
+                          }
+                        }
+                        
                         final notifier = ref.read(blockedContentNotifierProvider.notifier);
                         
                         if (value) {
@@ -300,6 +351,54 @@ class _AppListTile extends ConsumerWidget {
             onTap: () async {
               if (user == null) return;
               
+              // Check if trying to unblock and parental mode is enabled
+              if (isBlocked) {
+                // Check parental control status
+                final parentalControlDoc = await FirebaseFirestore.instance
+                    .collection('parental_controls')
+                    .doc(user.uid)
+                    .get();
+                
+                if (parentalControlDoc.exists) {
+                  final data = parentalControlDoc.data();
+                  final isEnabled = data?['isEnabled'] as bool? ?? false;
+                  
+                  if (isEnabled && context.mounted) {
+                    // Show PIN dialog
+                    final verified = await showDialog<bool>(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (context) => VerifyPasswordDialog(
+                        title: 'Parental Control',
+                        description: 'Enter PIN to unblock ${app.appName}',
+                        onVerify: (password) async {
+                          final service = ref.read(
+                            parentalControlServiceProvider,
+                          );
+                          return await service.verifyPassword(
+                            userId: user.uid,
+                            password: password,
+                          );
+                        },
+                      ),
+                    );
+
+                    if (verified != true) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('❌ Incorrect PIN or cancelled'),
+                            backgroundColor: Colors.red,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                      return;
+                    }
+                  }
+                }
+              }
+              
               final notifier = ref.read(blockedContentNotifierProvider.notifier);
               if (isBlocked) {
                 await notifier.removePermanentlyBlockedApp(user.uid, app.packageName);
@@ -335,6 +434,54 @@ class _AppListTile extends ConsumerWidget {
                       inactiveTrackColor: const Color(0xFF3A3A3A),
                       onChanged: (bool value) async {
                         if (user == null) return;
+                        
+                        // Check if trying to unblock and parental mode is enabled
+                        if (!value && isBlocked) {
+                          // Check parental control status
+                          final parentalControlDoc = await FirebaseFirestore.instance
+                              .collection('parental_controls')
+                              .doc(user.uid)
+                              .get();
+                          
+                          if (parentalControlDoc.exists) {
+                            final data = parentalControlDoc.data();
+                            final isEnabled = data?['isEnabled'] as bool? ?? false;
+                            
+                            if (isEnabled && context.mounted) {
+                              // Show PIN dialog
+                              final verified = await showDialog<bool>(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (context) => VerifyPasswordDialog(
+                                  title: 'Parental Control',
+                                  description: 'Enter PIN to unblock ${app.appName}',
+                                  onVerify: (password) async {
+                                    final service = ref.read(
+                                      parentalControlServiceProvider,
+                                    );
+                                    return await service.verifyPassword(
+                                      userId: user.uid,
+                                      password: password,
+                                    );
+                                  },
+                                ),
+                              );
+
+                              if (verified != true) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('❌ Incorrect PIN or cancelled'),
+                                      backgroundColor: Colors.red,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                                return;
+                              }
+                            }
+                          }
+                        }
                         
                         final notifier = ref.read(blockedContentNotifierProvider.notifier);
                         if (value) {

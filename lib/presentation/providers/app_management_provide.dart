@@ -32,11 +32,11 @@ final groupedAppsProvider = Provider<Map<String, List<InstalledApp>>>((ref) {
 
   return appsAsync.maybeWhen(
     data: (apps) {
-      // Filter by search & User apps only (optional)
+      // Filter by search query only (include all apps, even system apps)
       final filtered = apps.where((app) {
         final matchesSearch = app.appName.toLowerCase().contains(query);
-        final isNotSystem = !app.isSystemApp; // Optional: hide system apps
-        return matchesSearch && isNotSystem;
+        // Allow all apps including YouTube which might be marked as system app
+        return matchesSearch;
       }).toList();
 
       // Group by Category

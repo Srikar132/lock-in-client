@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
+import 'package:lock_in/presentation/providers/parental_control_provider.dart';
 import 'package:lock_in/presentation/providers/profile_provider.dart';
+import 'package:lock_in/models/parental_control.dart';
+import 'package:lock_in/widgets/parental_control_dialogs.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -20,6 +23,9 @@ class ProfileScreen extends ConsumerWidget {
           );
         }
 
+        final parentalControlAsync = ref.watch(
+          parentalControlProvider(user.uid),
+        );
         final statsAsync = ref.watch(profileStatsProvider(user.uid));
         final achievementsAsync = ref.watch(achievementsProvider(user.uid));
 
@@ -40,6 +46,23 @@ class ProfileScreen extends ConsumerWidget {
                       children: [
                         // Regain PRO Card
                         _buildProCard(context),
+
+                        const SizedBox(height: 24),
+
+                        // Parental Control Section
+                        parentalControlAsync.when(
+                          data: (parentalControl) =>
+                              _buildParentalControlSection(
+                                context,
+                                ref,
+                                user.uid,
+                                parentalControl,
+                              ),
+                          loading: () =>
+                              const Center(child: CircularProgressIndicator()),
+                          error: (_, __) =>
+                              const Text('Error loading settings'),
+                        ),
 
                         const SizedBox(height: 24),
 
@@ -72,7 +95,7 @@ class ProfileScreen extends ConsumerWidget {
         );
       },
       loading: () =>
-      const Scaffold(body: Center(child: CircularProgressIndicator())),
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (error, _) => Scaffold(body: Center(child: Text('Error: $error'))),
     );
   }
@@ -125,11 +148,24 @@ class ProfileScreen extends ConsumerWidget {
             ),
             child: user.photoURL != null
                 ? ClipOval(
-              child: Image.network(
-                user.photoURL!,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Center(
+                    child: Image.network(
+                      user.photoURL!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Center(
+                          child: Text(
+                            (user.displayName ?? user.email)[0].toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 48,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  )
+                : Center(
                     child: Text(
                       (user.displayName ?? user.email)[0].toUpperCase(),
                       style: const TextStyle(
@@ -138,20 +174,7 @@ class ProfileScreen extends ConsumerWidget {
                         color: Colors.white,
                       ),
                     ),
-                  );
-                },
-              ),
-            )
-                : Center(
-              child: Text(
-                (user.displayName ?? user.email)[0].toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 48,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
+                  ),
           ),
 
           const SizedBox(height: 12),
@@ -224,7 +247,7 @@ class ProfileScreen extends ConsumerWidget {
                 Row(
                   children: [
                     const Text(
-                      'Regain',
+                      'LockIn',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -292,10 +315,282 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildParentalControlSection(
+    BuildContext context,
+    WidgetRef ref,
+    String userId,
+    ParentalControl parentalControl,
+  ) {
+    final service = ref.read(parentalControlServiceProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Parental Control',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: [
+              // Parental Mode Toggle
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: parentalControl.isEnabled
+                        ? const Color(0xFF82D65D).withOpacity(0.2)
+                        : const Color(0xFF2A2A2A),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.lock,
+                    color: parentalControl.isEnabled
+                        ? const Color(0xFF82D65D)
+                        : Colors.white54,
+                    size: 24,
+                  ),
+                ),
+                title: const Text(
+                  'Parental Mode',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                subtitle: Text(
+                  parentalControl.isEnabled
+                      ? 'Apps are currently blocked'
+                      : 'Apps are not blocked',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: parentalControl.isEnabled
+                        ? const Color(0xFF82D65D)
+                        : Colors.white54,
+                  ),
+                ),
+                trailing: Switch(
+                  value: parentalControl.isEnabled,
+                  activeColor: const Color(0xFF82D65D),
+                  onChanged: (value) async {
+                    if (value) {
+                      // Enabling parental mode
+                      final hasPassword = await service.hasPassword(userId);
+                      if (!hasPassword) {
+                        // Show create password dialog
+                        if (context.mounted) {
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (context) => CreatePasswordDialog(
+                              onConfirm: (password) async {
+                                try {
+                                  await service.setupParentalControl(
+                                    userId: userId,
+                                    password: password,
+                                  );
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Parental mode enabled'),
+                                        backgroundColor: Color(0xFF82D65D),
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Error: $e'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                            ),
+                          );
+                        }
+                      } else {
+                        // Just enable it
+                        await service.enableParentalMode(userId);
+                      }
+                    } else {
+                      // Disabling parental mode - require password
+                      if (context.mounted) {
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (context) => VerifyPasswordDialog(
+                            title: 'Disable Parental Mode',
+                            description:
+                                'Enter your parental control password to continue',
+                            onVerify: (password) async {
+                              final isValid = await service.verifyPassword(
+                                userId: userId,
+                                password: password,
+                              );
+
+                              if (isValid) {
+                                await service.disableParentalMode(userId);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Parental mode disabled'),
+                                      backgroundColor: Colors.orange,
+                                    ),
+                                  );
+                                }
+                              } else {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Incorrect password'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
+                              return isValid;
+                            },
+                          ),
+                        );
+                      }
+                    }
+                  },
+                ),
+              ),
+
+              const Divider(color: Color(0xFF2A2A2A), height: 1),
+
+              // Change Password
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2A2A2A),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.key, color: Colors.white54, size: 24),
+                ),
+                title: const Text(
+                  'Change Password',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                subtitle: const Text(
+                  'Update parental control password',
+                  style: TextStyle(fontSize: 13, color: Colors.white54),
+                ),
+                trailing: const Icon(
+                  Icons.chevron_right,
+                  color: Colors.white54,
+                ),
+                onTap: () async {
+                  final hasPassword = await service.hasPassword(userId);
+                  if (!hasPassword) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enable parental mode first'),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                    }
+                    return;
+                  }
+
+                  if (context.mounted) {
+                    // First verify current password
+                    final verified = await showDialog<bool>(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (context) => VerifyPasswordDialog(
+                        title: 'Verify Identity',
+                        description: 'Enter your current password',
+                        onVerify: (password) async {
+                          final isValid = await service.verifyPassword(
+                            userId: userId,
+                            password: password,
+                          );
+                          return isValid;
+                        },
+                      ),
+                    );
+
+                    // If verified, show create new password dialog
+                    if (verified == true && context.mounted) {
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (context) => CreatePasswordDialog(
+                          onConfirm: (newPassword) async {
+                            try {
+                              await service.changePassword(
+                                userId: userId,
+                                newPassword: newPassword,
+                              );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Password changed successfully',
+                                    ),
+                                    backgroundColor: Color(0xFF82D65D),
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Error: $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+
+              const Divider(color: Color(0xFF2A2A2A), height: 1),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildOverviewSection(
-      BuildContext context,
-      AsyncValue<dynamic> statsAsync,
-      ) {
+    BuildContext context,
+    AsyncValue<dynamic> statsAsync,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -420,9 +715,9 @@ class ProfileScreen extends ConsumerWidget {
   }
 
   Widget _buildAchievementsSection(
-      BuildContext context,
-      AsyncValue<dynamic> achievementsAsync,
-      ) {
+    BuildContext context,
+    AsyncValue<dynamic> achievementsAsync,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -501,9 +796,9 @@ class ProfileScreen extends ConsumerWidget {
               child: isLocked
                   ? const Icon(Icons.lock, color: Colors.white38, size: 28)
                   : Text(
-                achievement.icon,
-                style: const TextStyle(fontSize: 32),
-              ),
+                      achievement.icon,
+                      style: const TextStyle(fontSize: 32),
+                    ),
             ),
           ),
           const SizedBox(height: 8),
@@ -533,10 +828,10 @@ class ProfileScreen extends ConsumerWidget {
   }
 
   Widget _buildInviteFriendsSection(
-      BuildContext context,
-      WidgetRef ref,
-      String userId,
-      ) {
+    BuildContext context,
+    WidgetRef ref,
+    String userId,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

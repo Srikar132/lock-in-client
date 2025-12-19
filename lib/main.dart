@@ -6,13 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lock_in/core/theme/app_theme.dart';
 import 'package:lock_in/presentation/overlays/overlay_app.dart';
 import 'package:lock_in/presentation/screens/splash_screen.dart';
+import 'package:lock_in/presentation/screens/manage_blocked_apps_screen.dart';
 import 'package:lock_in/services/native_service.dart';
 
 // Overlay entry point - separate from main app
 @pragma('vm:entry-point')
 void overlayMain() {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Set system UI for overlay
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -22,12 +23,8 @@ void overlayMain() {
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
-  
-  runApp(
-    const ProviderScope(
-      child: OverlayApp(),
-    ),
-  );
+
+  runApp(const ProviderScope(child: OverlayApp()));
 }
 
 void main() async {
@@ -87,6 +84,9 @@ class _LockInAppState extends ConsumerState<LockInApp> {
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.dark,
       home: const SplashScreen(),
+      routes: {
+        '/manage-blocked-apps': (context) => const ManageBlockedAppsScreen(),
+      },
       builder: (context, child) {
         ErrorWidget.builder = (FlutterErrorDetails errorDetails) {
           return Material(
@@ -118,7 +118,7 @@ class _LockInAppState extends ConsumerState<LockInApp> {
                           MaterialPageRoute(
                             builder: (_) => const SplashScreen(),
                           ),
-                              (route) => false,
+                          (route) => false,
                         );
                       },
                       child: const Text('Restart App'),

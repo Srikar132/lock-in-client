@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
 import 'package:lock_in/presentation/providers/app_limits_provider.dart';
 import 'package:lock_in/presentation/providers/blocked_content_provider.dart';
 import 'package:lock_in/presentation/providers/permission_provider.dart';
+import 'package:lock_in/presentation/providers/parental_control_provider.dart';
 import 'package:lock_in/data/models/blocked_content_model.dart';
 import 'package:lock_in/data/models/app_limit_model.dart';
 import 'package:lock_in/services/blocks_native_service.dart';
+import 'package:lock_in/widgets/parental_control_dialogs.dart';
 import 'dart:async';
 
 // Standalone permission check function accessible by all widgets
@@ -355,6 +358,53 @@ class _AppLimitTile extends ConsumerWidget {
                     }
                   }
 
+                  // If disabling, check parental control
+                  if (!value) {
+                    // Directly check Firestore for parental control
+                    final parentalControlDoc = await FirebaseFirestore.instance
+                        .collection('parental_controls')
+                        .doc(userId)
+                        .get();
+
+                    if (parentalControlDoc.exists) {
+                      final data = parentalControlDoc.data();
+                      final isEnabled = data?['isEnabled'] as bool? ?? false;
+
+                      if (isEnabled) {
+                        final verified = await showDialog<bool>(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (context) => VerifyPasswordDialog(
+                            title: 'Parental Control',
+                            description: 'Enter PIN to disable app limit',
+                            onVerify: (password) async {
+                              final service = ref.read(
+                                parentalControlServiceProvider,
+                              );
+                              return await service.verifyPassword(
+                                userId: userId,
+                                password: password,
+                              );
+                            },
+                          ),
+                        );
+
+                        if (verified != true) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('❌ Incorrect PIN or cancelled'),
+                                backgroundColor: Colors.red,
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                          }
+                          return;
+                        }
+                      }
+                    }
+                  }
+
                   // Update Firebase
                   ref
                       .read(appLimitNotifierProvider.notifier)
@@ -410,25 +460,15 @@ class _AppLimitTile extends ConsumerWidget {
 // 2. SHORT FORM BLOCKS SECTION
 // ============================================================================
 
-class _ShortFormBlocksSection extends ConsumerStatefulWidget {
+class _ShortFormBlocksSection extends ConsumerWidget {
   final String userId;
 
   const _ShortFormBlocksSection({required this.userId});
 
   @override
-  ConsumerState<_ShortFormBlocksSection> createState() =>
-      _ShortFormBlocksSectionState();
-}
-
-class _ShortFormBlocksSectionState
-    extends ConsumerState<_ShortFormBlocksSection> {
-  // Local state to track toggle values for immediate UI response
-  Map<String, bool> localToggles = {};
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     // Watch the blockedContentProvider directly and extract shortFormBlocks
-    final contentAsync = ref.watch(blockedContentProvider(widget.userId));
+    final contentAsync = ref.watch(blockedContentProvider(userId));
 
     return _BlockSection(
       title: 'Short Form Content',
@@ -439,15 +479,13 @@ class _ShortFormBlocksSectionState
           // Extract blocks directly from the content model
           final blocks = content.shortFormBlocks;
 
-          // Initialize local toggles from Firestore data if not set
-          if (localToggles.isEmpty) {
-            localToggles = {
-              'youtube_shorts': blocks['youtube_shorts']?.isBlocked ?? false,
-              'instagram_reels': blocks['instagram_reels']?.isBlocked ?? false,
-              'tiktok_all': blocks['tiktok_all']?.isBlocked ?? false,
-              'facebook_reels': blocks['facebook_reels']?.isBlocked ?? false,
-            };
-          }
+          // Log what we got from Firestore
+          print(
+            '📱 ShortFormBlocksSection: Retrieved from Firestore - ${blocks.keys.toList()}',
+          );
+          blocks.forEach((key, block) {
+            print('   - $key: isBlocked=${block.isBlocked}');
+          });
 
           return Column(
             children: [
@@ -455,61 +493,57 @@ class _ShortFormBlocksSectionState
                 title: 'YouTube Shorts',
                 subtitle: 'Block Shorts shelf & feed',
                 icon: Icons.play_circle_outline,
-                isBlocked: localToggles['youtube_shorts'] ?? false,
-                onChanged: (value) async {
-                  await _updateBlock(
-                    ref,
-                    'YouTube',
-                    'Shorts',
-                    value,
-                    'youtube_shorts',
-                  );
-                },
+                isBlocked: blocks['YouTube_Shorts']?.isBlocked ?? false,
+                onChanged: (value) => _updateBlock(
+                  context,
+                  ref,
+                  userId,
+                  'YouTube',
+                  'Shorts',
+                  value,
+                ),
               ),
               _ShortFormToggle(
                 title: 'Instagram Reels',
                 subtitle: 'Block Reels tab & feed',
                 icon: Icons.camera_alt_outlined,
-                isBlocked: localToggles['instagram_reels'] ?? false,
-                onChanged: (value) async {
-                  await _updateBlock(
-                    ref,
-                    'Instagram',
-                    'Reels',
-                    value,
-                    'instagram_reels',
-                  );
-                },
+                isBlocked: blocks['Instagram_Reels']?.isBlocked ?? false,
+                onChanged: (value) => _updateBlock(
+                  context,
+                  ref,
+                  userId,
+                  'Instagram',
+                  'Reels',
+                  value,
+                ),
               ),
               _ShortFormToggle(
                 title: 'TikTok',
                 subtitle: 'Block app entirely',
                 icon: Icons.music_note_outlined,
-                isBlocked: localToggles['tiktok_all'] ?? false,
-                onChanged: (value) async {
-                  await _updateBlock(
-                    ref,
-                    'TikTok',
-                    'Videos',
-                    value,
-                    'tiktok_all',
-                  );
-                },
+                isBlocked: blocks['TikTok_Videos']?.isBlocked ?? false,
+                onChanged: (value) => _updateBlock(
+                  context,
+                  ref,
+                  userId,
+                  'TikTok',
+                  'Videos',
+                  value,
+                ),
               ),
               _ShortFormToggle(
                 title: 'Facebook Reels',
                 subtitle: 'Block Reels section',
                 icon: Icons.facebook_outlined,
-                isBlocked: localToggles['facebook_reels'] ?? false,
-                onChanged: (value) async {
-                  await _updateBlock(
-                    ref,
-                    'Facebook',
-                    'Reels',
-                    value,
-                    'facebook_reels',
-                  );
-                },
+                isBlocked: blocks['Facebook_Reels']?.isBlocked ?? false,
+                onChanged: (value) => _updateBlock(
+                  context,
+                  ref,
+                  userId,
+                  'Facebook',
+                  'Reels',
+                  value,
+                ),
               ),
             ],
           );
@@ -522,18 +556,19 @@ class _ShortFormBlocksSectionState
   }
 
   Future<void> _updateBlock(
+    BuildContext context,
     WidgetRef ref,
+    String userId,
     String platform,
     String feature,
     bool isBlocked,
-    String key,
   ) async {
     // If enabling, check permissions first
     if (isBlocked) {
       final hasPermissions = await _checkAndRequestPermissions(context, ref);
       if (!hasPermissions) {
         // Don't update if permissions not granted
-        if (mounted) {
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
@@ -548,13 +583,63 @@ class _ShortFormBlocksSectionState
       }
     }
 
-    try {
-      // Update local state immediately for instant UI feedback
-      setState(() {
-        localToggles[key] = isBlocked;
-      });
+    // If disabling, check parental control
+    if (!isBlocked) {
+      print('🔐 Checking parental control for disabling $platform $feature');
 
-      print('🔄 Updating $platform $feature to $isBlocked locally');
+      // Directly check Firestore for parental control
+      final parentalControlDoc = await FirebaseFirestore.instance
+          .collection('parental_controls')
+          .doc(userId)
+          .get();
+
+      if (parentalControlDoc.exists) {
+        final data = parentalControlDoc.data();
+        final isEnabled = data?['isEnabled'] as bool? ?? false;
+        print('🔐 Parental control found: isEnabled=$isEnabled');
+
+        if (isEnabled) {
+          print('🔐 Showing PIN dialog');
+          // Show PIN verification dialog
+          final verified = await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => VerifyPasswordDialog(
+              title: 'Parental Control',
+              description: 'Enter PIN to disable $platform $feature blocking',
+              onVerify: (password) async {
+                final service = ref.read(parentalControlServiceProvider);
+                return await service.verifyPassword(
+                  userId: userId,
+                  password: password,
+                );
+              },
+            ),
+          );
+
+          print('🔐 PIN verification result: $verified');
+          if (verified != true) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('❌ Incorrect PIN or cancelled'),
+                  backgroundColor: Colors.red,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+            return;
+          }
+        } else {
+          print('🔐 Parental control is not enabled, allowing operation');
+        }
+      } else {
+        print('🔐 No parental control document found, allowing operation');
+      }
+    }
+
+    try {
+      print('🔄 Updating $platform $feature to $isBlocked');
 
       // Update native service first
       final nativeService = ref.read(blocksNativeServiceProvider);
@@ -568,19 +653,14 @@ class _ShortFormBlocksSectionState
       // Then call the notifier method to update Firestore
       await ref
           .read(blockedContentNotifierProvider.notifier)
-          .toggleShortFormBlockStatus(
-            widget.userId,
-            platform,
-            feature,
-            isBlocked,
-          );
+          .toggleShortFormBlockStatus(userId, platform, feature, isBlocked);
 
       print(
         '✅ Successfully updated $platform $feature to $isBlocked in Firestore',
       );
 
       // Show feedback to user
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -596,12 +676,7 @@ class _ShortFormBlocksSectionState
     } catch (e) {
       print('❌ Error updating short form block: $e');
 
-      // Revert local state if update failed
-      setState(() {
-        localToggles[key] = !isBlocked;
-      });
-
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to update $platform $feature'),
@@ -614,7 +689,7 @@ class _ShortFormBlocksSectionState
   }
 }
 
-class _ShortFormToggle extends StatelessWidget {
+class _ShortFormToggle extends StatefulWidget {
   final String title;
   final String subtitle;
   final IconData icon;
@@ -630,7 +705,55 @@ class _ShortFormToggle extends StatelessWidget {
   });
 
   @override
+  State<_ShortFormToggle> createState() => _ShortFormToggleState();
+}
+
+class _ShortFormToggleState extends State<_ShortFormToggle> {
+  bool? _optimisticValue;
+  bool _isUpdating = false;
+  DateTime? _lastUpdateTime;
+
+  @override
+  void didUpdateWidget(_ShortFormToggle oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Clear optimistic value when Firestore confirms the change
+    if (oldWidget.isBlocked != widget.isBlocked) {
+      print(
+        '🔄 Toggle ${widget.title}: Firestore updated from ${oldWidget.isBlocked} to ${widget.isBlocked}, optimistic was $_optimisticValue',
+      );
+      if (_optimisticValue != null && _optimisticValue == widget.isBlocked) {
+        print(
+          '✅ Toggle ${widget.title}: Clearing optimistic value (confirmed by Firestore)',
+        );
+        setState(() => _optimisticValue = null);
+      } else if (_optimisticValue != null &&
+          _optimisticValue != widget.isBlocked) {
+        print(
+          '⚠️ Toggle ${widget.title}: Firestore value conflicts with optimistic value',
+        );
+        // Firestore value is different from what we expected, trust Firestore
+        setState(() => _optimisticValue = null);
+      }
+    }
+  }
+
+  void _revertOptimisticValue() {
+    if (mounted) {
+      setState(() {
+        _optimisticValue = null;
+        _isUpdating = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Use optimistic value if available, otherwise use actual value
+    final displayValue = _optimisticValue ?? widget.isBlocked;
+    print(
+      '🎨 Toggle ${widget.title}: Rendering with displayValue=$displayValue (optimistic=$_optimisticValue, firestore=${widget.isBlocked})',
+    );
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
@@ -641,25 +764,60 @@ class _ShortFormToggle extends StatelessWidget {
       child: SwitchListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         secondary: Icon(
-          icon,
-          color: isBlocked ? const Color(0xFF82D65D) : Colors.grey,
+          widget.icon,
+          color: displayValue ? const Color(0xFF82D65D) : Colors.grey,
         ),
         title: Text(
-          title,
+          widget.title,
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w500,
           ),
         ),
         subtitle: Text(
-          subtitle,
+          widget.subtitle,
           style: TextStyle(color: Colors.white.withOpacity(0.5)),
         ),
-        value: isBlocked,
+        value: displayValue,
         activeColor: const Color(0xFF82D65D),
         activeTrackColor: const Color(0xFF82D65D).withOpacity(0.3),
         inactiveTrackColor: Colors.grey.withOpacity(0.2),
-        onChanged: onChanged,
+        onChanged: _isUpdating
+            ? null
+            : (value) {
+                if (_isUpdating) return;
+
+                // Set optimistic value immediately for instant UI feedback
+                setState(() {
+                  _optimisticValue = value;
+                  _isUpdating = true;
+                  _lastUpdateTime = DateTime.now();
+                });
+
+                // Call the actual update
+                widget.onChanged(value);
+
+                // Set a timeout to revert optimistic value if Firestore doesn't confirm
+                Future.delayed(const Duration(seconds: 3)).then((_) {
+                  if (mounted && _optimisticValue != null) {
+                    // If optimistic value is still set after 3 seconds,
+                    // it means the update failed (e.g., PIN was wrong)
+                    if (widget.isBlocked != _optimisticValue) {
+                      print(
+                        '⚠️ Toggle ${widget.title}: Reverting optimistic value (update not confirmed)',
+                      );
+                      _revertOptimisticValue();
+                    }
+                  }
+                });
+
+                // Reset updating flag after shorter delay
+                Future.delayed(const Duration(milliseconds: 800)).then((_) {
+                  if (mounted) {
+                    setState(() => _isUpdating = false);
+                  }
+                });
+              },
       ),
     );
   }
@@ -884,6 +1042,53 @@ class _WebsiteTile extends ConsumerWidget {
                     );
                     if (!hasPermission) {
                       return;
+                    }
+                  }
+
+                  // If disabling, check parental control
+                  if (!value) {
+                    // Directly check Firestore for parental control
+                    final parentalControlDoc = await FirebaseFirestore.instance
+                        .collection('parental_controls')
+                        .doc(userId)
+                        .get();
+
+                    if (parentalControlDoc.exists) {
+                      final data = parentalControlDoc.data();
+                      final isEnabled = data?['isEnabled'] as bool? ?? false;
+
+                      if (isEnabled) {
+                        final verified = await showDialog<bool>(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (context) => VerifyPasswordDialog(
+                            title: 'Parental Control',
+                            description: 'Enter PIN to disable website block',
+                            onVerify: (password) async {
+                              final service = ref.read(
+                                parentalControlServiceProvider,
+                              );
+                              return await service.verifyPassword(
+                                userId: userId,
+                                password: password,
+                              );
+                            },
+                          ),
+                        );
+
+                        if (verified != true) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('❌ Incorrect PIN or cancelled'),
+                                backgroundColor: Colors.red,
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                          }
+                          return;
+                        }
+                      }
                     }
                   }
 
