@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lock_in/data/models/installed_app_model.dart';
+import 'package:lock_in/models/usage_stats_models.dart';
 import 'package:lock_in/presentation/providers/focus_session_provider.dart';
 
 /// Service class to handle all native Android permissions required by the app.
@@ -473,6 +474,181 @@ class NativeService {
     } catch (e) {
       debugPrint('Error getting persistent notification blocks: $e');
       return {};
+    }
+  }
+
+  // ============================================================================
+  // USAGE STATISTICS
+  // ============================================================================
+
+  /// Get app usage statistics for the specified number of days
+  static Future<Map<String, dynamic>> getAppUsageStats({int days = 7}) async {
+    try {
+      final result = await _platform.invokeMethod('getAppUsageStats', {
+        'days': days,
+      });
+      
+      if (result is Map) {
+        return Map<String, dynamic>.from(result);
+      }
+      
+      return {
+        'apps': <Map<String, dynamic>>[],
+        'summary': {
+          'totalAppsUsed': 0,
+          'totalUsageMinutes': 0,
+          'totalUsageHours': 0.0,
+          'averageUsagePerApp': 0,
+          'topApp': 'None',
+          'daysAnalyzed': days,
+          'error': 'Invalid response format'
+        },
+        'period': {
+          'startTime': DateTime.now().subtract(Duration(days: days)).millisecondsSinceEpoch,
+          'endTime': DateTime.now().millisecondsSinceEpoch,
+          'days': days,
+        }
+      };
+    } catch (e) {
+      debugPrint('Error getting app usage stats: $e');
+      return {
+        'apps': <Map<String, dynamic>>[],
+        'summary': {
+          'totalAppsUsed': 0,
+          'totalUsageMinutes': 0,
+          'totalUsageHours': 0.0,
+          'averageUsagePerApp': 0,
+          'topApp': 'None',
+          'daysAnalyzed': days,
+          'error': e.toString()
+        },
+        'period': {
+          'startTime': DateTime.now().subtract(Duration(days: days)).millisecondsSinceEpoch,
+          'endTime': DateTime.now().millisecondsSinceEpoch,
+          'days': days,
+        }
+      };
+    }
+  }
+
+  /// Get today's usage statistics
+  static Future<Map<String, dynamic>> getTodayUsageStats() async {
+    try {
+      final result = await _platform.invokeMethod('getTodayUsageStats');
+      
+      if (result is Map) {
+        return Map<String, dynamic>.from(result);
+      }
+      
+      return {
+        'apps': <Map<String, dynamic>>[],
+        'summary': {
+          'totalAppsUsed': 0,
+          'totalUsageMinutes': 0,
+          'totalUsageHours': 0.0,
+          'averageUsagePerApp': 0,
+          'topApp': 'None',
+          'daysAnalyzed': 1,
+          'error': 'Invalid response format'
+        },
+        'period': {
+          'startTime': DateTime.now().copyWith(hour: 0, minute: 0, second: 0, millisecond: 0).millisecondsSinceEpoch,
+          'endTime': DateTime.now().millisecondsSinceEpoch,
+          'days': 1,
+        }
+      };
+    } catch (e) {
+      debugPrint('Error getting today\'s usage stats: $e');
+      return {
+        'apps': <Map<String, dynamic>>[],
+        'summary': {
+          'totalAppsUsed': 0,
+          'totalUsageMinutes': 0,
+          'totalUsageHours': 0.0,
+          'averageUsagePerApp': 0,
+          'topApp': 'None',
+          'daysAnalyzed': 1,
+          'error': e.toString()
+        },
+        'period': {
+          'startTime': DateTime.now().copyWith(hour: 0, minute: 0, second: 0, millisecond: 0).millisecondsSinceEpoch,
+          'endTime': DateTime.now().millisecondsSinceEpoch,
+          'days': 1,
+        }
+      };
+    }
+  }
+
+  /// Get usage patterns (hourly breakdown for today)
+  static Future<Map<String, dynamic>> getTodayUsagePatterns() async {
+    try {
+      final result = await _platform.invokeMethod('getTodayUsagePatterns');
+      
+      if (result is Map) {
+        return Map<String, dynamic>.from(result);
+      }
+      
+      return {
+        'hourlyUsage': List.generate(24, (hour) => {
+          'hour': hour,
+          'usageMinutes': 0,
+          'isCurrentHour': hour == DateTime.now().hour,
+        }),
+        'summary': {
+          'totalUsageToday': 0,
+          'peakHour': 0,
+          'peakUsage': 0,
+          'currentHour': DateTime.now().hour,
+        }
+      };
+    } catch (e) {
+      debugPrint('Error getting usage patterns: $e');
+      return {
+        'hourlyUsage': List.generate(24, (hour) => {
+          'hour': hour,
+          'usageMinutes': 0,
+          'isCurrentHour': hour == DateTime.now().hour,
+        }),
+        'summary': {
+          'totalUsageToday': 0,
+          'peakHour': 0,
+          'peakUsage': 0,
+          'currentHour': DateTime.now().hour,
+          'error': e.toString(),
+        }
+      };
+    }
+  }
+
+  /// Get specific app usage stats
+  static Future<Map<String, dynamic>> getAppSpecificUsage({
+    required String packageName,
+    int days = 7,
+  }) async {
+    try {
+      final result = await _platform.invokeMethod('getAppSpecificUsage', {
+        'packageName': packageName,
+        'days': days,
+      });
+      
+      if (result is Map) {
+        return Map<String, dynamic>.from(result);
+      }
+      
+      return {
+        'appName': packageName,
+        'packageName': packageName,
+        'totalUsageMinutes': 0,
+        'error': 'Invalid response format'
+      };
+    } catch (e) {
+      debugPrint('Error getting app specific usage: $e');
+      return {
+        'appName': packageName,
+        'packageName': packageName,
+        'totalUsageMinutes': 0,
+        'error': e.toString()
+      };
     }
   }
 }

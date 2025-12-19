@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lock_in/data/models/focus_session_model.dart';
 import 'package:lock_in/services/native_service.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
@@ -24,6 +25,7 @@ enum FocusSessionStatus {
   active,
   paused,
   ending,
+  endingWithSave,
   completed,
   error,
 }
@@ -88,6 +90,7 @@ class FocusSessionState {
 class FocusSessionNotifier extends Notifier<FocusSessionState> {
   StreamSubscription? _eventSubscription;
   Timer? _localTimer;
+  bool _isEndingForSave = false;
 
   @override
   FocusSessionState build() {
@@ -193,6 +196,15 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
   }
 
   void _handleSessionCompleted(Map<String, dynamic>? data) {
+    debugPrint('🔄 _handleSessionCompleted called. Current status: ${state.status}, _isEndingForSave: $_isEndingForSave');
+    
+    // If we're ending for save screen, ignore the native completion event
+    if (_isEndingForSave) {
+      debugPrint('🔄 Ignoring auto-completion - session is being ended for save screen');
+      return;
+    }
+
+    debugPrint('🔄 Setting status to completed from _handleSessionCompleted');
     state = state.copyWith(
       status: FocusSessionStatus.completed,
       isPaused: false,
@@ -357,23 +369,24 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
       return;
     }
 
+    // Set flag to indicate we're ending for save screen
+    _isEndingForSave = true;
+    debugPrint('🔄 Setting flag _isEndingForSave = true');
+
+    debugPrint('🔄 Setting status to ending...');
     state = state.copyWith(status: FocusSessionStatus.ending);
 
     try {
+      debugPrint('🔄 Calling native endFocusSession...');
       final success = await NativeService.endFocusSession();
       
       if (success) {
-        final nativeData = await NativeService.getCurrentSessionStatus();
-
-        if (nativeData != null && state.sessionId != null) {
-          await _saveCompletedSession(nativeData);
-        }
-
-        // FIX: Set state to idle BEFORE any navigation happens
-        state = FocusSessionState(status: FocusSessionStatus.idle);
+        // Set state to endingWithSave to trigger navigation to save screen
+        debugPrint('🔄 Setting status to endingWithSave...');
+        state = state.copyWith(status: FocusSessionStatus.endingWithSave);
         _stopLocalTimer();
         
-        debugPrint('✅ Session ended successfully');
+        debugPrint('✅ Session ended, ready for save screen. Status: ${state.status}');
       } else {
         throw Exception('Failed to end native session');
       }
@@ -424,6 +437,68 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
       debugPrint('✅ Session saved to Firestore');
     } catch (e) {
       debugPrint('❌ Error saving completed session: $e');
+    }
+  }
+
+  // Get session data for save screen
+  Map<String, dynamic> getCurrentSessionData() {
+    return {
+      'sessionId': state.sessionId,
+      'elapsedSeconds': state.elapsedSeconds ?? 0,
+      'plannedDuration': state.plannedDuration,
+      'sessionType': state.sessionType,
+      'startTime': DateTime.now().subtract(Duration(seconds: state.elapsedSeconds ?? 0)),
+    };
+  }
+
+  // Complete session with additional notes and tag
+  Future<void> completeSessionWithNotes({
+    String? notes,
+    String? tag,
+  }) async {
+    try {
+      final user = ref.read(currentUserProvider).value;
+      if (user == null || state.sessionId == null) return;
+
+      final actualDuration = state.elapsedMinutes;
+      final todayDate = _getTodayDateString();
+
+      // Update session with notes and tag
+      await ref.read(sessionRepositoryProvider).updateSession(
+        state.sessionId!,
+        {
+          'actualDuration': actualDuration,
+          'endTime': Timestamp.now(),
+          'status': 'completed',
+          'notes': notes ?? '',
+          'tag': tag ?? 'untagged',
+          'completedAt': todayDate,
+        },
+      );
+
+      // Reset the flag and set state to completed
+      _isEndingForSave = false;
+      state = FocusSessionState(status: FocusSessionStatus.completed);
+      _stopLocalTimer();
+      
+      debugPrint('✅ Session completed and saved with notes');
+    } catch (e) {
+      debugPrint('❌ Error completing session with notes: $e');
+      throw e;
+    }
+  }
+
+  // Discard session without saving
+  void discardSession() {
+    try {
+      // Reset the flag and set state to idle without saving
+      _isEndingForSave = false;
+      state = FocusSessionState(status: FocusSessionStatus.idle);
+      _stopLocalTimer();
+      
+      debugPrint('✅ Session discarded without saving');
+    } catch (e) {
+      debugPrint('❌ Error discarding session: $e');
     }
   }
 }

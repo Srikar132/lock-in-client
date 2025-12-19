@@ -30,11 +30,18 @@ class BlockedContentRepository {
   // Get blocked content as stream for real-time updates
   Stream<BlockedContentModel> getBlockedContentStream(String userId) {
     return _getBlockedContentDoc(userId)
-        .snapshots(includeMetadataChanges: true)
+        .snapshots(includeMetadataChanges: false) // Changed to false for better real-time updates
         .map(
-          (doc) => doc.exists
-              ? BlockedContentModel.fromFirestore(doc)
-              : BlockedContentModel(),
+          (doc) {
+            debugPrint('🔄 Firestore stream update for user $userId: doc exists = ${doc.exists}');
+            if (doc.exists) {
+              final model = BlockedContentModel.fromFirestore(doc);
+              debugPrint('📋 Short form blocks in stream: ${model.shortFormBlocks}');
+              return model;
+            } else {
+              return BlockedContentModel();
+            }
+          },
         );
   }
 
@@ -279,13 +286,50 @@ class BlockedContentRepository {
     try {
       final key = '${platform}_$feature';
 
-      await _getBlockedContentDoc(userId).update({
-        'shortFormBlocks.$key.isBlocked': isBlocked,
+      // Get the document reference
+      final docRef = _getBlockedContentDoc(userId);
+      
+      // Create the field path for nested update
+      final fieldPath = 'shortFormBlocks.$key';
+      
+      // Use update with FieldPath to ensure proper Firestore change detection
+      await docRef.update({
+        fieldPath: {
+          'platform': platform,
+          'feature': feature,
+          'isBlocked': isBlocked,
+        },
         'lastUpdated': Timestamp.fromDate(DateTime.now()),
       });
+
+      debugPrint('Successfully updated short form block: $key to $isBlocked');
     } catch (e) {
       debugPrint('Error toggling short form block status: $e');
-      rethrow;
+      
+      // If document doesn't exist, create it with the block
+      if (e.toString().contains('not found') || e.toString().contains('No document')) {
+        try {
+          debugPrint('Document not found, creating new one...');
+          final block = ShortFormBlock(
+            platform: platform,
+            feature: feature,
+            isBlocked: isBlocked,
+          );
+          
+          final blockKey = '${platform}_$feature';
+          await _getBlockedContentDoc(userId).set({
+            'shortFormBlocks': {blockKey: block.toMap()},
+            'lastUpdated': Timestamp.fromDate(DateTime.now()),
+          });
+          
+          debugPrint('Successfully created new blocked content document');
+        } catch (createError) {
+          debugPrint('Error creating document: $createError');
+          rethrow;
+        }
+      } else {
+        rethrow;
+      }
     }
   }
 

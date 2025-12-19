@@ -18,7 +18,6 @@ class BlockedAppOverlay extends ConsumerStatefulWidget {
 class _BlockedAppOverlayState extends ConsumerState<BlockedAppOverlay>
     with TickerProviderStateMixin {
   late AnimationController _pulseController;
-  late AnimationController _slideController;
   late AnimationController _fadeController;
 
   @override
@@ -31,18 +30,12 @@ class _BlockedAppOverlayState extends ConsumerState<BlockedAppOverlay>
       vsync: this,
     )..repeat(reverse: true);
 
-    _slideController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-
     _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 100), // Very fast fade-in
       vsync: this,
     );
 
-    // Start animations
-    _slideController.forward();
+    // Start fade animation immediately - no slide
     _fadeController.forward();
 
     // Vibrate on appear
@@ -54,7 +47,6 @@ class _BlockedAppOverlayState extends ConsumerState<BlockedAppOverlay>
   @override
   void dispose() {
     _pulseController.dispose();
-    _slideController.dispose();
     _fadeController.dispose();
     super.dispose();
   }
@@ -63,15 +55,6 @@ class _BlockedAppOverlayState extends ConsumerState<BlockedAppOverlay>
   Widget build(BuildContext context) {
     final overlayState = ref.watch(overlayDataProvider);
     final overlayNotifier = ref.read(overlayDataProvider.notifier);
-
-    if (overlayState. isLoading) {
-      return const Scaffold(
-        backgroundColor: Colors.black,
-        body: Center(
-          child:  CircularProgressIndicator(color: Colors.white),
-        ),
-      );
-    }
 
     if (overlayState. error != null) {
       return Scaffold(
@@ -103,17 +86,9 @@ class _BlockedAppOverlayState extends ConsumerState<BlockedAppOverlay>
       child: Scaffold(
         body: OverlayBackground(
           child: SafeArea(
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin:  const Offset(0, -1),
-                end:  Offset.zero,
-              ).animate(CurvedAnimation(
-                parent: _slideController,
-                curve:  Curves.elasticOut,
-              )),
-              child: FadeTransition(
-                opacity: _fadeController,
-                child: Padding(
+            child: FadeTransition(
+              opacity: _fadeController,
+              child: Padding(
                   padding: const EdgeInsets.all(24.0),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment. center,
@@ -158,7 +133,6 @@ class _BlockedAppOverlayState extends ConsumerState<BlockedAppOverlay>
                     ],
                   ),
                 ),
-              ),
             ),
           ),
         ),

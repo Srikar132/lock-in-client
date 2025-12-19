@@ -3,7 +3,6 @@ package com.example.lock_in.services.focus
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
@@ -225,12 +224,50 @@ class FocusMonitoringService : Service() {
             wasBlocked = true
         )
 
+
+
         // Show overlay
-        overlayLauncher.showFocusBlockOverlay(
+        /*overlayLauncher.showFocusBlockOverlay(
             packageName = packageName,
             appName = appName,
             sessionData = sessionManager.getCurrentSessionStatus()
-        )
+        )*/
+
+        bringAppToForeground()
+
+    }
+
+    /**
+     * Forcefully brings com.example.lock_in to the foreground
+     */
+    private fun bringAppToForeground() {
+        try {
+            val intent = packageManager.getLaunchIntentForPackage(this.packageName)?.apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                addFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED) // Helps when app was killed
+            }
+            if (intent != null) {
+                startActivity(intent)
+                Log.d(FocusMonitoringService.Companion.TAG, "Successfully brought LockIn to foreground")
+            }
+        } catch (e: Exception) {
+            sendToHomeScreen()
+        }
+    }
+
+    private fun sendToHomeScreen() {
+        try {
+            val homeIntent =
+                Intent(Intent.ACTION_MAIN).apply {
+                    addCategory(Intent.CATEGORY_HOME)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+            startActivity(homeIntent)
+        } catch (e: Exception) {
+            Log.e(FocusMonitoringService.Companion.TAG, "Error sending to home screen", e)
+        }
     }
 
     private fun updateBlockedAppsCache() {

@@ -19,7 +19,7 @@ class OverlayApp extends ConsumerWidget {
           primary: Color(0xFF6366F1),
           secondary: Color(0xFF8B5CF6),
           surface:  Color(0xFF0F0F0F),
-          background: Color(0xFF000000),
+          background: Color(0xFF0F0F0F), // Use same as surface to avoid flash
         ),
         fontFamily: 'Inter',
       ),

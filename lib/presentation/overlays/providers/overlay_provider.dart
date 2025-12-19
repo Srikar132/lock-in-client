@@ -15,7 +15,7 @@ class OverlayState {
   const OverlayState({
     this.overlayData = const {},
     this.sessionData = const {},
-    this.isLoading = true,
+    this.isLoading = false,
     this.error,
   });
 
@@ -69,8 +69,8 @@ class OverlayDataNotifier extends Notifier<OverlayState> {
 
   @override
   OverlayState build() {
-    // Initial load happens here
-    _loadInitialData();
+    // Load initial data asynchronously without blocking UI
+    Future.microtask(() => _loadInitialData());
 
     ref.listen(overlayEventsProvider, (previous, next) {
       next.whenData((event) {
@@ -93,12 +93,10 @@ class OverlayDataNotifier extends Notifier<OverlayState> {
       state = state.copyWith(
         overlayData: Map<String, dynamic>.from(overlayData ?? {}),
         sessionData: Map<String, dynamic>.from(sessionData ?? {}),
-        isLoading: false,
       );
     } catch (e) {
       state = state.copyWith(
         error: 'Failed to load overlay data: $e',
-        isLoading: false,
       );
     }
   }

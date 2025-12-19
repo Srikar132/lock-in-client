@@ -412,7 +412,10 @@ class AppMonitoringService : Service() {
                 val focusTimeMinutes = getFocusTimeMinutes()
 
                 Log.d(TAG, "Blocking app: $appName ($packageName)")
+                
+                bringAppToForeground()
 
+                
                 // Show Flutter overlay
                 FlutterOverlayManager.showBlockedAppOverlay(
                     context = this@AppMonitoringService,
@@ -425,7 +428,6 @@ class AppMonitoringService : Service() {
 
                 // Send user to home screen
                 //sendToHomeScreen()
-                bringAppToForeground()
 
                 // Report interruption
                 focusManager.reportInterruption(

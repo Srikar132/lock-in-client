@@ -8,6 +8,8 @@ import 'package:lock_in/presentation/providers/focus_session_provider.dart';
 import 'package:lock_in/presentation/providers/blocked_content_provider.dart';
 import 'package:lock_in/presentation/providers/settings_provider.dart';
 import 'package:lock_in/presentation/screens/active_focus_screen.dart';
+import 'package:lock_in/presentation/screens/profile_screen.dart';
+import 'package:lock_in/presentation/screens/usage_stats_screen.dart';
 import 'package:lock_in/widgets/focus_timer_widget.dart';
 import 'package:lock_in/widgets/lumo_mascot_widget.dart';
 import 'dart:math';
@@ -273,7 +275,9 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
         // User Profile Avatar
         GestureDetector(
           onTap: () {
-            // Navigate to profile or open drawer
+            Navigator.push(
+              context, MaterialPageRoute(builder: (context) => const ProfileScreen())
+            );
           },
           child: Container(
             width: 32,
@@ -308,10 +312,19 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
         const Spacer(),
 
         // Usage Time Card
-        _buildStatCard(
-          label: 'Usage',
-          value: _formatDuration(user.totalFocusTime),
-          backgroundColor: Colors.white.withOpacity(0.15),
+        GestureDetector(
+          onTap: () {
+            // Handle tap on usage card
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder:  (context) => const UsageStatsScreen())
+            );
+          },
+          child: _buildStatCard(
+            label: 'Usage',
+            value: _formatDuration(user.totalFocusTime),
+            backgroundColor: Colors.white.withOpacity(0.15),
+          ),
         ),
 
         const SizedBox(width: 6),

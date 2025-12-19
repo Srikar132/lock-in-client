@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lock_in/core/theme/app_theme.dart'; // Ensure theme access
 import 'package:lock_in/presentation/providers/auth_provider.dart';
 import 'package:lock_in/presentation/providers/app_limits_provider.dart';
 import 'package:lock_in/presentation/providers/blocked_content_provider.dart';
@@ -196,67 +195,121 @@ class _AppLimitTile extends ConsumerWidget {
 // 2. SHORT FORM BLOCKS SECTION
 // ============================================================================
 
-class _ShortFormBlocksSection extends ConsumerWidget {
+// ============================================================================
+// 2. SHORT FORM BLOCKS SECTION - FIXED VERSION
+// ============================================================================
+
+class _ShortFormBlocksSection extends ConsumerStatefulWidget {
   final String userId;
 
   const _ShortFormBlocksSection({required this.userId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final shortFormsAsync = ref.watch(shortFormBlocksProvider(userId));
+  ConsumerState<_ShortFormBlocksSection> createState() => _ShortFormBlocksSectionState();
+}
 
+class _ShortFormBlocksSectionState extends ConsumerState<_ShortFormBlocksSection> {
+  // Local state to track toggle values for immediate UI response
+  Map<String, bool> localToggles = {};
+  
+  @override
+  Widget build(BuildContext context) {
+    // FIX: Watch the blockedContentProvider directly and extract shortFormBlocks
+    final contentAsync = ref.watch(blockedContentProvider(widget.userId));
+    
     return _BlockSection(
       title: 'Short Form Content',
       icon: Icons.video_library_outlined,
       description: 'Block addictive short-form feeds',
-      child: shortFormsAsync.when(
-        data: (blocks) {
+
+      child: contentAsync.when(
+        data: (content) {
+          // Extract blocks directly from the content model
+          final blocks = content.shortFormBlocks;
+          
+          // Initialize local toggles from Firestore data if not set
+          if (localToggles.isEmpty) {
+            localToggles = {
+              'youtube_shorts': blocks['youtube_shorts']?.isBlocked ?? false,
+              'instagram_reels': blocks['instagram_reels']?.isBlocked ?? false,
+              'tiktok_all': blocks['tiktok_all']?.isBlocked ?? false,
+              'facebook_reels': blocks['facebook_reels']?.isBlocked ?? false,
+            };
+          }
+          
           return Column(
             children: [
               _ShortFormToggle(
                 title: 'YouTube Shorts',
                 subtitle: 'Block Shorts shelf & feed',
                 icon: Icons.play_circle_outline,
-                isBlocked: blocks['youtube_shorts']?.isBlocked ?? false,
-                onChanged: (value) => _updateBlock(ref, 'youtube', 'shorts', value),
+                isBlocked: localToggles['youtube_shorts'] ?? false,
+                onChanged: (value) async {
+                  await _updateBlock(ref, 'youtube', 'shorts', value, 'youtube_shorts');
+                },
               ),
               _ShortFormToggle(
                 title: 'Instagram Reels',
                 subtitle: 'Block Reels tab & feed',
                 icon: Icons.camera_alt_outlined,
-                isBlocked: blocks['instagram_reels']?.isBlocked ?? false,
-                onChanged: (value) => _updateBlock(ref, 'instagram', 'reels', value),
+                isBlocked: localToggles['instagram_reels'] ?? false,
+                onChanged: (value) async {
+                  await _updateBlock(ref, 'instagram', 'reels', value, 'instagram_reels');
+                },
               ),
               _ShortFormToggle(
                 title: 'TikTok',
                 subtitle: 'Block app entirely',
                 icon: Icons.music_note_outlined,
-                isBlocked: blocks['tiktok_all']?.isBlocked ?? false,
-                onChanged: (value) => _updateBlock(ref, 'tiktok', 'all', value),
+                isBlocked: localToggles['tiktok_all'] ?? false,
+                onChanged: (value) async {
+                  await _updateBlock(ref, 'tiktok', 'all', value, 'tiktok_all');
+                },
               ),
               _ShortFormToggle(
                 title: 'Facebook Reels',
                 subtitle: 'Block Reels section',
                 icon: Icons.facebook_outlined,
-                isBlocked: blocks['facebook_reels']?.isBlocked ?? false,
-                onChanged: (value) => _updateBlock(ref, 'facebook', 'reels', value),
+                isBlocked: localToggles['facebook_reels'] ?? false,
+                onChanged: (value) async {
+                  await _updateBlock(ref, 'facebook', 'reels', value, 'facebook_reels');
+                },
               ),
             ],
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => _ErrorState(message: 'Could not load settings'),
+        error: (e, stack) => _ErrorState(message: 'Could not load settings: $e'),
       ),
     );
   }
 
-  void _updateBlock(WidgetRef ref, String platform, String feature, bool isBlocked) {
-    final block = ShortFormBlock(
-      platform: platform,
-      feature: feature,
-      isBlocked: isBlocked,
-    );
-    ref.read(blockedContentNotifierProvider.notifier).setShortFormBlock(userId, block);
+  Future<void> _updateBlock(WidgetRef ref, String platform, String feature, bool isBlocked, String key) async {
+    try {
+      // Update local state immediately for instant UI feedback
+      setState(() {
+        localToggles[key] = isBlocked;
+      });
+      
+      print('🔄 Updating $platform $feature to $isBlocked locally');
+      
+      // Call the notifier method to update Firestore
+      await ref.read(blockedContentNotifierProvider.notifier).toggleShortFormBlockStatus(
+        widget.userId,
+        platform,
+        feature,
+        isBlocked,
+      );
+      
+      print('✅ Successfully updated $platform $feature to $isBlocked in Firestore');
+    } catch (e) {
+      print('❌ Error updating short form block: $e');
+      
+      // Revert local state if Firestore update failed
+      setState(() {
+        localToggles[key] = !isBlocked;
+      });
+    }
   }
 }
 
@@ -298,6 +351,8 @@ class _ShortFormToggle extends StatelessWidget {
     );
   }
 }
+
+
 
 // ============================================================================
 // 3. WEBSITE BLOCKING SECTION
@@ -505,7 +560,6 @@ class _BlockSection extends StatelessWidget {
   final IconData icon;
   final String description;
   final Widget child;
-
   const _BlockSection({
     required this.title,
     required this.icon,

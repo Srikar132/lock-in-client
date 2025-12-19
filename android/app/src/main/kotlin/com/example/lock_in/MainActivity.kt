@@ -13,6 +13,7 @@ import com.example.lock_in.services.focus.FocusSessionManager
 import com.example.lock_in.services.limits.AppLimitManager
 import com.example.lock_in.services.shared.BlockingConfig
 import com.example.lock_in.utils.AppUtils
+import com.example.lock_in.utils.UsageStatsHelper
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -61,7 +62,7 @@ class MainActivity: FlutterActivity() {
         NotificationHelper.createAllNotificationChannels(this)
 
         // Store app start time
-        val prefs = getSharedPreferences("app_lifecycle", Context.MODE_PRIVATE)
+        val prefs = getSharedPreferences("app_lifecycle", MODE_PRIVATE)
         if (!prefs.contains("app_start_time")) {
             prefs.edit().putLong("app_start_time", System.currentTimeMillis()).apply()
         }
@@ -303,6 +304,61 @@ class MainActivity: FlutterActivity() {
                             }
                         }
                     }
+
+                    "getAppUsageStats" -> {
+                        val days = (arguments as? Map<String, Any>)?.get("days") as? Int ?: 7
+                        withContext(Dispatchers.IO) {
+                            val stats = UsageStatsHelper.getAppUsageStats(this@MainActivity, days)
+                            withContext(Dispatchers.Main) {
+                                result.success(stats)
+                            }
+                        }
+                    }
+
+                    "getTodayUsageStats" -> {
+                        withContext(Dispatchers.IO) {
+                            val stats = UsageStatsHelper.getTodayUsageStats(
+                                this@MainActivity
+                            )
+                            withContext(Dispatchers.Main) {
+                                result.success(stats)
+                            }
+                        }
+                    }
+
+                    "getTodayUsagePatterns" -> {
+                        withContext(Dispatchers.IO) {
+                            val patterns = UsageStatsHelper.getTodayUsagePatterns(
+                                this@MainActivity
+                            )
+                            withContext(Dispatchers.Main) {
+                                result.success(patterns)
+                            }
+                        }
+                    }
+
+                    "getAppSpecificUsage" -> {
+                        val args = arguments as? Map<String, Any>
+                        val packageName = args?.get("packageName") as? String
+                        val days = args?.get("days") as? Int ?: 7
+
+                        if (packageName != null) {
+                            withContext(Dispatchers.IO) {
+                                val usage = UsageStatsHelper.getAppSpecificUsage(
+                                    this@MainActivity,
+                                    packageName,
+                                    days
+                                )
+                                withContext(Dispatchers.Main) {
+                                    result.success(usage)
+                                }
+                            }
+                        } else {
+                            result.error("INVALID_ARGUMENT", "Package name is required", null)
+                        }
+                    }
+
+
 
                     "getAppIcon" -> {
                         val args = arguments as? Map<*, *>

@@ -5,6 +5,9 @@ import 'package:lock_in/presentation/providers/blocked_content_provider.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
 import 'package:lock_in/core/constants/images.dart';
 import 'package:lock_in/widgets/lumo_mascot_widget.dart';
+import 'package:lock_in/models/model_manager.dart';
+import 'package:lock_in/models/end_session_bottom_sheet.dart';
+import 'package:lock_in/presentation/screens/save_session_screen.dart';
 
 class ActiveFocusScreen extends ConsumerStatefulWidget {
   final String sessionId;
@@ -43,31 +46,28 @@ class _ActiveFocusScreenState extends ConsumerState<ActiveFocusScreen> {
   }
 
   Future<void> _endSession() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await BottomSheetManager.show<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('End Session?'),
-        content: const Text('Are you sure you want to end your focus session?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('End Session'),
-          ),
-        ],
-      ),
+      height: 300,
+      child: const EndSessionBottomSheet(),
     );
 
     if (confirmed == true && mounted) {
       try {
         await ref.read(focusSessionProvider.notifier).endSession();
+        
+        // Navigate directly to save screen after ending session
+        if (mounted) {
+          final sessionData = ref.read(focusSessionProvider.notifier).getCurrentSessionData();
+          debugPrint('🎯 _endSession: Navigating directly to save screen');
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => SaveSessionScreen(
+                sessionData: sessionData,
+              ),
+            ),
+          );
+        }
       } catch (e) {
         debugPrint('Error ending session: $e');
         _showErrorSnackBar('Failed to end session');
@@ -94,8 +94,13 @@ class _ActiveFocusScreenState extends ConsumerState<ActiveFocusScreen> {
 
     // Listen to session status changes for navigation
     ref.listen<FocusSessionState>(focusSessionProvider, (previous, next) {
+      debugPrint('🎯 ActiveFocusScreen: Status changed from ${previous?.status} to ${next.status}');
+      
+      // Only handle completed and idle states here - endingWithSave is handled directly in _endSession
       if (next.status == FocusSessionStatus.completed ||
           next.status == FocusSessionStatus.idle) {
+        debugPrint('🎯 ActiveFocusScreen: Navigating to home (status: ${next.status})');
+        // Navigate to home for completion scenarios
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && Navigator.of(context).canPop()) {
             Navigator.of(context).pop();
@@ -238,8 +243,8 @@ class _ActiveFocusScreenState extends ConsumerState<ActiveFocusScreen> {
     final isPaused = sessionState.status == FocusSessionStatus.paused;
 
     return Container(
-      width: 320,
-      height: 320,
+      width: 270,
+      height: 270,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
@@ -269,7 +274,7 @@ class _ActiveFocusScreenState extends ConsumerState<ActiveFocusScreen> {
               ),
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
 
             // Dropdown indicator
             Icon(
@@ -278,7 +283,7 @@ class _ActiveFocusScreenState extends ConsumerState<ActiveFocusScreen> {
               size: 20,
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 15),
 
             // Timer Label
             Text(
@@ -290,7 +295,7 @@ class _ActiveFocusScreenState extends ConsumerState<ActiveFocusScreen> {
               ),
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 3),
 
             // Main Timer Display
             Text(
@@ -303,14 +308,14 @@ class _ActiveFocusScreenState extends ConsumerState<ActiveFocusScreen> {
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 15),
 
             // Take a Break Button
             if (!isPaused)
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 10,
+                  horizontal: 20,
+                  vertical: 7,
                 ),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
@@ -333,8 +338,8 @@ class _ActiveFocusScreenState extends ConsumerState<ActiveFocusScreen> {
             if (isPaused)
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 10,
+                  horizontal: 20,
+                  vertical: 7,
                 ),
                 decoration: BoxDecoration(
                   color: Colors.orange.withOpacity(0.3),

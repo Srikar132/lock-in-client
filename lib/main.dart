@@ -9,7 +9,20 @@ import 'package:lock_in/presentation/screens/splash_screen.dart';
 import 'package:lock_in/services/native_service.dart';
 
 // Overlay entry point - separate from main app
+@pragma('vm:entry-point')
 void overlayMain() {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Set system UI for overlay
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarIconBrightness: Brightness.light,
+    ),
+  );
+  
   runApp(
     const ProviderScope(
       child: OverlayApp(),

@@ -11,6 +11,7 @@ import android.os.Vibrator
 import android.util.Log
 import android.view.WindowManager
 import androidx.annotation.RequiresPermission
+// Ensure this matches your actual package structure
 import com.lockin.focus.FocusModeManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -45,6 +46,7 @@ class BlockOverlayActivity : FlutterActivity() {
     private var sessionData: Map<String, Any>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        configureOverlayWindow()
         super.onCreate(savedInstanceState)
 
         Log.d(TAG, "BlockOverlayActivity created")
@@ -53,7 +55,6 @@ class BlockOverlayActivity : FlutterActivity() {
         parseIntentData()
 
         // Configure window for overlay
-        configureOverlayWindow()
 
         // Load session data
         loadCurrentSessionData()
@@ -109,7 +110,7 @@ class BlockOverlayActivity : FlutterActivity() {
 
     private fun parseIntentData() {
         try {
-            overlayType = intent.getStringExtra("overlay_type") ?: "blocked_app"
+            overlayType = intent.getStringExtra("overlayType") ?: "blocked_app"
 
             val baseData = when (overlayType) {
                 "blocked_app" -> parseBlockedAppData()
@@ -134,12 +135,12 @@ class BlockOverlayActivity : FlutterActivity() {
 
     private fun parseBlockedAppData(): Map<String, Any> {
         return mapOf(
-            "packageName" to (intent.getStringExtra("package_name") ?: ""),
-            "appName" to (intent.getStringExtra("app_name") ?: ""),
-            "focusTimeMinutes" to intent.getIntExtra("focus_time_minutes", 0),
-            "sessionType" to (intent.getStringExtra("session_type") ?: "timer"),
-            "sessionId" to (intent.getStringExtra("session_id") ?: ""),
-            "blockReason" to "focus_session",
+            "packageName" to (intent.getStringExtra("packageName") ?: ""),
+            "appName" to (intent.getStringExtra("appName") ?: ""),
+            "focusTimeMinutes" to intent.getIntExtra("focusTimeMinutes", 0),
+            "sessionType" to (intent.getStringExtra("sessionType") ?: "timer"),
+            "sessionId" to (intent.getStringExtra("sessionId") ?: ""),
+            "blockReason" to "focusSession",
             "motivationalMessage" to getMotivationalMessage()
         )
     }
@@ -220,12 +221,12 @@ class BlockOverlayActivity : FlutterActivity() {
                 addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
 
                 // 4. Set the proper overlay type for modern Android
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
-                } else {
-                    @Suppress("DEPRECATION")
-                    setType(WindowManager.LayoutParams.TYPE_PHONE)
-                }
+                // if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                //     setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+                // } else {
+                //     @Suppress("DEPRECATION")
+                //     setType(WindowManager.LayoutParams.TYPE_PHONE)
+                // }
 
                 // 5. Configure transparent system bars for a seamless look
                 statusBarColor = Color.TRANSPARENT

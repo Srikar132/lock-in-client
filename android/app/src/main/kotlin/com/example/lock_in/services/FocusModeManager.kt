@@ -12,7 +12,7 @@ import com.example.lock_in.models.Interruption
 import com.example.lock_in.services.AppMonitoringService
 import com.example.lock_in.services.PomodoroManager
 import com.example.lock_in.services.notifications.NotificationBlockingService
-import com.example.lock_in.services.shorts.ShortFormBlockingService
+import com.example.lock_in.services.shorts.ShortsBlockingService
 import com.example.lock_in.services.web.WebBlockingVPNService
 import io.flutter.plugin.common.EventChannel
 import kotlinx.coroutines.CoroutineScope
@@ -891,9 +891,9 @@ class FocusModeManager(private val context: Context) {
         try {
             if (isPersistentShortFormBlockingEnabled()) {
                 val blocks = getPersistentShortFormBlocks()
-                ShortFormBlockingService.updateBlocks(context, blocks)
+                ShortsBlockingService.updateBlocks(context, blocks)
             } else {
-                ShortFormBlockingService.updateBlocks(context, emptyMap())
+                ShortsBlockingService.updateBlocks(context, emptyMap())
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error updating short-form blocking", e)

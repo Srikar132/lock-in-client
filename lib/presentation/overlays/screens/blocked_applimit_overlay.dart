@@ -13,7 +13,6 @@ class AppLimitOverlay extends ConsumerStatefulWidget {
 class _AppLimitOverlayState extends ConsumerState<AppLimitOverlay>
     with TickerProviderStateMixin {
   late AnimationController _progressController;
-  late AnimationController _slideController;
   late AnimationController _scaleController;
 
   @override
@@ -25,22 +24,14 @@ class _AppLimitOverlayState extends ConsumerState<AppLimitOverlay>
       vsync: this,
     );
 
-    _slideController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-
     _scaleController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 100), // Faster
       vsync: this,
     );
 
-    // Start animations
-    _slideController.forward();
-    Future.delayed(const Duration(milliseconds: 200), () {
-      _scaleController.forward();
-    });
-    Future.delayed(const Duration(milliseconds: 400), () {
+    // Start animations immediately - no slide
+    _scaleController.forward();
+    Future.delayed(const Duration(milliseconds: 100), () {
       _progressController.forward();
     });
 
@@ -53,8 +44,7 @@ class _AppLimitOverlayState extends ConsumerState<AppLimitOverlay>
   @override
   void dispose() {
     _progressController.dispose();
-    _slideController.dispose();
-    _scaleController. dispose();
+    _scaleController.dispose();
     super.dispose();
   }
 
@@ -90,15 +80,7 @@ class _AppLimitOverlayState extends ConsumerState<AppLimitOverlay>
             end: Alignment.bottomCenter,
           ),
           child: SafeArea(
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, 0.3),
-                end: Offset. zero,
-              ).animate(CurvedAnimation(
-                parent: _slideController,
-                curve:  Curves.easeOut,
-              )),
-              child: Padding(
+            child: Padding(
                 padding: const EdgeInsets.all(24.0),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment. center,
@@ -175,7 +157,6 @@ class _AppLimitOverlayState extends ConsumerState<AppLimitOverlay>
                     _buildUsageInsights(usedMinutes, limitMinutes),
                   ],
                 ),
-              ),
             ),
           ),
         ),

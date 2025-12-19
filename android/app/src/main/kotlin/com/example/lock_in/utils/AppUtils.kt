@@ -19,51 +19,37 @@ object AppUtils {
         return withContext(Dispatchers.IO) {
             try {
                 val packageManager = context.packageManager
-                val packages = packageManager. getInstalledPackages(PackageManager.GET_META_DATA)
-
+                // Use 0 or GET_META_DATA carefully; 0 is faster
+                val packages = packageManager.getInstalledPackages(PackageManager.GET_META_DATA)
                 val apps = mutableListOf<Map<String, Any>>()
 
                 packages.forEach { packageInfo ->
-                    try {
-                        val applicationInfo: ApplicationInfo = packageInfo.applicationInfo ?: return@forEach
+                    val applicationInfo = packageInfo.applicationInfo ?: return@forEach
 
-                        // Skip system apps unless they're user-interesting
-                        if (isSystemApp(applicationInfo) && !isUserInterestingSystemApp(packageInfo.packageName)) {
-                            return@forEach
-                        }
+                    // 1. IMPROVED FILTERING
+                    val isSys = isSystemApp(applicationInfo)
+                    val isInteresting = isUserInterestingSystemApp(packageInfo.packageName)
 
-                        val appName = packageManager.getApplicationLabel(applicationInfo).toString()
-                        val packageName = packageInfo.packageName
-                        val versionName = packageInfo.versionName ?: "Unknown"
-                        val installTime = packageInfo.firstInstallTime
-                        val updateTime = packageInfo.lastUpdateTime
-                        val systemApp = isSystemApp(applicationInfo)
-
-                        // Get app category
-                        val category = getAppCategory(applicationInfo)
-
-                        apps.add(
-                            mapOf(
-                                "appName" to appName,
-                                "packageName" to packageName,
-                                "versionName" to versionName,
-                                "installTime" to installTime,
-                                "updateTime" to updateTime,
-                                "isSystemApp" to systemApp,
-                                "category" to category,
-                                "canLaunch" to canLaunchApp(packageManager, packageName),
-                            )
-                        )
-
-                    } catch (e:  Exception) {
-                        Log. w(TAG, "Error processing package: ${packageInfo.packageName}", e)
+                    // Only skip if it's a system app AND NOT interesting
+                    if (isSys && !isInteresting) {
+                        return@forEach
                     }
+
+                    val appName = packageManager.getApplicationLabel(applicationInfo).toString()
+
+                    apps.add(mapOf(
+                        "appName" to appName,
+                        "packageName" to packageInfo.packageName,
+                        "isSystemApp" to isSys,
+                        "category" to getAppCategory(applicationInfo),
+                        "canLaunch" to canLaunchApp(packageManager, packageInfo.packageName)
+                    ))
                 }
 
-                // Sort apps by name
-                apps.sortedBy { it["appName"] as String }
+                // 2. RETURN THE SORTED LIST
+                apps.sortedBy { (it["appName"] as String).lowercase() }
 
-            } catch (e:  Exception) {
+            } catch (e: Exception) {
                 Log.e(TAG, "Error getting installed apps", e)
                 emptyList()
             }
@@ -85,6 +71,8 @@ object AppUtils {
         val interestingSystemApps = setOf(
             "com.android.chrome",
             "com.google.android.youtube",
+            "com.google.android.youtube.tv", // TV version
+            "com.google.android.apps.youtube.music", // YouTube Music
             "com. android.vending", // Play Store
             "com.google.android. gms",
             "com. google.android.apps.maps",
@@ -95,7 +83,7 @@ object AppUtils {
             "com.android.calculator2"
         )
 
-        return packageName in interestingSystemApps
+        return packageName in interestingSystemApps || packageName.contains("youtube")
     }
 
     /**
@@ -248,6 +236,39 @@ object AppUtils {
         } catch (e:  Exception) {
             Log.e(TAG, "Error launching app $packageName", e)
             false
+        }
+    }
+
+    fun getAppInfo(context: Context, packageName: String): Map<String, Any>? {
+        return try {
+            val packageManager = context. packageManager
+            val packageInfo = packageManager. getPackageInfo(packageName, PackageManager.GET_META_DATA)
+            val applicationInfo: ApplicationInfo? = packageInfo.applicationInfo
+
+            if(applicationInfo == null) {
+                Log.w(TAG, "ApplicationInfo is null for $packageName")
+                return null
+            }
+
+            mapOf(
+                "appName" to packageManager.getApplicationLabel(applicationInfo).toString(),
+                "packageName" to packageName,
+                "versionName" to (packageInfo.versionName ?: "Unknown"),
+                "versionCode" to packageInfo.versionCode,
+                "installTime" to packageInfo.firstInstallTime,
+                "updateTime" to packageInfo.lastUpdateTime,
+                "isSystemApp" to isSystemApp(applicationInfo),
+                "category" to getAppCategory(applicationInfo),
+                "targetSdk" to applicationInfo.targetSdkVersion,
+                "minSdk" to
+                        applicationInfo.minSdkVersion,
+                "dataDir" to applicationInfo.dataDir,
+                "canLaunch" to canLaunchApp(packageManager, packageName),
+                "hasLauncherActivity" to hasLauncherActivity(packageManager, packageName)
+            )
+        } catch (e:  Exception) {
+            Log.e(TAG, "Error getting app info for $packageName", e)
+            null
         }
     }
 }
