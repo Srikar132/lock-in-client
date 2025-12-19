@@ -80,6 +80,7 @@
         <service
             android:name=".services.LockInAccessibilityService"
             android:exported="false"
+            android:foregroundServiceType="specialUse"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
@@ -87,6 +88,9 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="App blocking and content monitoring" />
         </service>
 
         <!-- App Monitoring Service (Foreground) -->
@@ -98,16 +102,6 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Focus mode app monitoring" />
-        </service>
-
-        <!-- Short Form Blocking Service -->
-        <service
-            android:name=".services.shorts.ShortsBlockingService"
-            android:exported="false"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
         </service>
 
         <!-- Notification Blocking Service -->

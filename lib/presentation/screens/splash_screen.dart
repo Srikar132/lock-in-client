@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
 import 'package:lock_in/presentation/providers/focus_session_provider.dart';
+import 'package:lock_in/presentation/providers/permission_provider.dart';
 import 'package:lock_in/presentation/screens/entry_screen.dart';
 import 'package:lock_in/presentation/screens/home_screen.dart';
 import 'package:lock_in/presentation/screens/onboarding/onboarding_screen.dart';
@@ -34,7 +35,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
       if (status != null && status['isActive'] == true && mounted) {
         // Sync the session state to Flutter
-        await ref.read(focusSessionProvider.notifier).refreshSessionFromNative();
+        await ref
+            .read(focusSessionProvider.notifier)
+            .refreshSessionFromNative();
 
         setState(() {
           _hasCheckedSession = true;
@@ -93,8 +96,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
           return const OnboardingScreen();
         }
 
-        // Check permissions status
-        if (!user.hasGrantedPermissions) {
+        // Check permissions in real-time from provider, not database
+        // This ensures we always check actual permission status
+        final permissionState = ref.watch(permissionProvider);
+
+        // Always trigger permission check on splash screen
+        Future.microtask(() {
+          ref.read(permissionProvider.notifier).checkPermissions();
+        });
+
+        // If ANY permission is not granted, show permission screen
+        // User must grant ALL permissions before proceeding
+        if (!permissionState.allGranted) {
           return const PermissionScreen();
         }
 
@@ -123,10 +136,7 @@ class _ErrorScreen extends StatelessWidget {
   final String error;
   final VoidCallback onRetry;
 
-  const _ErrorScreen({
-    required this.error,
-    required this.onRetry,
-  });
+  const _ErrorScreen({required this.error, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -235,12 +245,7 @@ class _LoadingScreenState extends State<_LoadingScreen>
     _scaleAnimation = Tween<double>(
       begin: 0.85,
       end: 1.05,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeInOut,
-      ),
-    );
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -258,9 +263,7 @@ class _LoadingScreenState extends State<_LoadingScreen>
           child: Container(
             width: 80,
             height: 80,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-            ),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(20)),
             child: Icon(
               Icons.hourglass_full,
               size: 50,

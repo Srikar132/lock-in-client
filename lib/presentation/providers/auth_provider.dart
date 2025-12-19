@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lock_in/data/models/user_model.dart';
 import 'package:lock_in/data/repositories/auth_repository.dart';
 import 'package:lock_in/data/repositories/user_repository.dart';
+import 'package:lock_in/presentation/providers/permission_provider.dart';
 
 // Auth State for loading management
 class AuthState {
@@ -36,8 +37,12 @@ class AuthState {
 }
 
 // Repository Providers
-final authRepositoryProvider = Provider<AuthRepository>((ref) => AuthRepository());
-final userRepositoryProvider = Provider<UserRepository>((ref) => UserRepository());
+final authRepositoryProvider = Provider<AuthRepository>(
+  (ref) => AuthRepository(),
+);
+final userRepositoryProvider = Provider<UserRepository>(
+  (ref) => UserRepository(),
+);
 
 // Firebase Auth State (Single Source of Truth)
 final authStateProvider = StreamProvider<User?>((ref) {
@@ -53,14 +58,13 @@ final currentUserProvider = StreamProvider<UserModel?>((ref) {
       if (firebaseUser == null) {
         return Stream.value(null);
       }
-      
+
       return ref.watch(userRepositoryProvider).streamUserData(firebaseUser.uid);
     },
     loading: () => Stream.value(null),
     error: (error, stack) => Stream.value(null),
   );
 });
-
 
 class AuthNotifier extends Notifier<AuthState> {
   late AuthRepository _authRepository;
@@ -77,12 +81,12 @@ class AuthNotifier extends Notifier<AuthState> {
   Future<void> signInWithGoogle() async {
     try {
       state = state.copyWith(isSigningIn: true, clearError: true);
-      
+
       // Firebase handles all the persistence automatically
       final user = await _authRepository.signInWithGoogle();
-      
+
       state = state.copyWith(isSigningIn: false);
-      
+
       if (user == null) {
         state = state.copyWith(error: 'Sign-in was cancelled');
       }
@@ -98,10 +102,10 @@ class AuthNotifier extends Notifier<AuthState> {
   Future<void> signOut() async {
     try {
       state = state.copyWith(isSigningOut: true, clearError: true);
-      
+
       // Firebase handles clearing all cached data
       await _authRepository.signOut();
-      
+
       state = state.copyWith(isSigningOut: false);
     } catch (e) {
       state = state.copyWith(
@@ -128,10 +132,12 @@ class AuthNotifier extends Notifier<AuthState> {
       );
 
       await _userRepository.updateOnboardingStatus(userId, true);
-      
+
       // No need to manually update local cache - Firebase streams will update automatically
     } catch (e) {
-      state = state.copyWith(error: 'Failed to complete onboarding: ${e.toString()}');
+      state = state.copyWith(
+        error: 'Failed to complete onboarding: ${e.toString()}',
+      );
       rethrow;
     }
   }
@@ -142,7 +148,9 @@ class AuthNotifier extends Notifier<AuthState> {
       await _userRepository.updatePermissionStatus(userId, granted);
       // Firebase streams automatically update UI
     } catch (e) {
-      state = state.copyWith(error: 'Failed to update permissions: ${e.toString()}');
+      state = state.copyWith(
+        error: 'Failed to update permissions: ${e.toString()}',
+      );
       rethrow;
     }
   }
@@ -170,7 +178,7 @@ final isAuthenticatedProvider = Provider<bool>((ref) {
 final authLoadingProvider = Provider<bool>((ref) {
   final authState = ref.watch(authNotifierProvider);
   final streamState = ref.watch(authStateProvider);
-  
+
   return authState.isProcessing || streamState.isLoading;
 });
 
@@ -182,26 +190,30 @@ final authErrorProvider = Provider<String?>((ref) {
 final shouldShowOnboardingProvider = Provider<bool>((ref) {
   final user = ref.watch(currentUserProvider).value;
   final isAuthenticated = ref.watch(isAuthenticatedProvider);
-  
+
   return isAuthenticated && user != null && !user.hasCompletedOnboarding;
 });
 
 final shouldShowPermissionsProvider = Provider<bool>((ref) {
   final user = ref.watch(currentUserProvider).value;
   final isAuthenticated = ref.watch(isAuthenticatedProvider);
-  
-  return isAuthenticated && 
-         user != null && 
-         user.hasCompletedOnboarding && 
-         !user.hasGrantedPermissions;
+  final permissionState = ref.watch(permissionProvider);
+
+  // Check real-time permissions from provider, not database
+  return isAuthenticated &&
+      user != null &&
+      user.hasCompletedOnboarding &&
+      !permissionState.allGranted;
 });
 
 final shouldShowHomeProvider = Provider<bool>((ref) {
   final user = ref.watch(currentUserProvider).value;
   final isAuthenticated = ref.watch(isAuthenticatedProvider);
-  
-  return isAuthenticated && 
-         user != null && 
-         user.hasCompletedOnboarding && 
-         user.hasGrantedPermissions;
+  final permissionState = ref.watch(permissionProvider);
+
+  // Check real-time permissions from provider, not database
+  return isAuthenticated &&
+      user != null &&
+      user.hasCompletedOnboarding &&
+      permissionState.allGranted;
 });

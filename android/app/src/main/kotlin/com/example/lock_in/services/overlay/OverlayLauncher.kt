@@ -117,22 +117,20 @@ class OverlayLauncher private constructor(private val context: Context) {
             // Overlay type
             putExtra("overlayType", "app_limit")
 
-            // App data
-            putExtra("packageName", packageName)
-            putExtra("appName", appName)
+            // App data - using snake_case keys to match BlockOverlayActivity parser
+            putExtra("app_name", appName)
+            putExtra("package_name", packageName)
 
             // Limit data
-            putExtra("usedMinutes", usedMinutes)
-            putExtra("limitMinutes", limitMinutes)
-            putExtra("percentageUsed", ((usedMinutes.toFloat() / limitMinutes) * 100).toInt())
-
-            // Block reason
-            putExtra("blockReason", "You've reached your daily limit for this app")
-            putExtra("blockType", "app_limit")
-
-            // Reset info
-            val resetTime = getResetTimeText()
-            putExtra("resetTime", resetTime)
+            putExtra("used_minutes", usedMinutes)
+            putExtra("limit_minutes", limitMinutes)
+            putExtra("usage_percentage", ((usedMinutes.toFloat() / limitMinutes) * 100).toInt())
+            putExtra("limit_type", "daily")
+            
+            // Reset time calculation
+            val hoursUntilReset = getHoursUntilMidnight()
+            putExtra("time_until_reset", hoursUntilReset.toLong())
+            putExtra("allow_override", false)
         }
 
         launchOverlay(intent, packageName)
@@ -160,20 +158,28 @@ class OverlayLauncher private constructor(private val context: Context) {
             // Overlay type
             putExtra("overlayType", "blocked_shorts")
 
-            // App data
-            putExtra("packageName", packageName)
-            putExtra("appName", appName)
-            putExtra("contentType", contentType)
-
-            // Block reason
-            val reason = when (contentType) {
-                "shorts" -> "YouTube Shorts are blocked"
-                "reels" -> "Instagram Reels are blocked"
-                "tiktok" -> "TikTok content is blocked"
-                else -> "Short-form content is blocked"
+            // App data - using snake_case keys to match BlockOverlayActivity parser
+            putExtra("package_name", packageName)
+            putExtra("content_type", contentType)
+            
+            // Platform detection based on package name
+            val platform = when (packageName) {
+                "com.google.android.youtube" -> "YouTube"
+                "com.instagram.android" -> "Instagram"
+                "com.zhiliaoapp.musically" -> "TikTok"
+                "com.facebook.katana" -> "Facebook"
+                else -> "Unknown"
             }
-            putExtra("blockReason", reason)
-            putExtra("blockType", "short_form")
+            putExtra("platform", platform)
+            
+            // Educational message based on content type
+            val educationalMessage = when (contentType) {
+                "shorts" -> "YouTube Shorts are designed to keep you scrolling. Take control of your time!"
+                "reels" -> "Instagram Reels can be addictive. Focus on what truly matters!"
+                "tiktok" -> "TikTok videos are made to hook you. Break free and stay focused!"
+                else -> "Short-form content is distracting. You're doing great by staying focused!"
+            }
+            putExtra("educational_message", educationalMessage)
         }
 
         launchOverlay(intent, packageName)
@@ -200,13 +206,11 @@ class OverlayLauncher private constructor(private val context: Context) {
             // Overlay type
             putExtra("overlayType", "blocked_website")
 
-            // Website data
-            putExtra("url", url)
-            putExtra("websiteName", extractDomain(url))
-
-            // Block reason
-            putExtra("blockReason", reason)
-            putExtra("blockType", "website")
+            // Website data - using snake_case keys to match BlockOverlayActivity parser
+            putExtra("domain", extractDomain(url))
+            putExtra("full_url", url)
+            putExtra("block_reason", reason)
+            putExtra("suggestion", "Use this time for something more meaningful and productive")
         }
 
         launchOverlay(intent, url)
@@ -281,7 +285,7 @@ class OverlayLauncher private constructor(private val context: Context) {
     // UTILITIES
     // ==========================================
 
-    private fun getResetTimeText(): String {
+    private fun getHoursUntilMidnight(): Int {
         val calendar = java.util.Calendar.getInstance()
         calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
         calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
@@ -290,8 +294,11 @@ class OverlayLauncher private constructor(private val context: Context) {
 
         val resetTime = calendar.timeInMillis
         val currentTime = System.currentTimeMillis()
-        val hoursUntilReset = ((resetTime - currentTime) / (1000 * 60 * 60)).toInt()
+        return ((resetTime - currentTime) / (1000 * 60 * 60)).toInt()
+    }
 
+    private fun getResetTimeText(): String {
+        val hoursUntilReset = getHoursUntilMidnight()
         return "Resets in $hoursUntilReset hours"
     }
 

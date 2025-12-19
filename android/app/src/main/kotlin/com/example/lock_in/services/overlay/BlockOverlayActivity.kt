@@ -47,14 +47,14 @@ class BlockOverlayActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         configureOverlayWindow()
+        
+        // CRITICAL: Parse intent data BEFORE super.onCreate()
+        // because getInitialRoute() is called during Flutter engine initialization
+        parseIntentData()
+        
         super.onCreate(savedInstanceState)
 
-        Log.d(TAG, "BlockOverlayActivity created")
-
-        // Parse intent data
-        parseIntentData()
-
-        // Configure window for overlay
+        Log.d(TAG, "BlockOverlayActivity created with type: $overlayType")
 
         // Load session data
         loadCurrentSessionData()

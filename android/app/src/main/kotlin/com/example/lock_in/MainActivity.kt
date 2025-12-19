@@ -12,6 +12,8 @@ import com.example.lock_in.services.focus.FocusMonitoringService
 import com.example.lock_in.services.focus.FocusSessionManager
 import com.example.lock_in.services.limits.AppLimitManager
 import com.example.lock_in.services.shared.BlockingConfig
+import com.example.lock_in.managers.ShortFormBlockManager
+import com.example.lock_in.managers.WebsiteBlockManager
 import com.example.lock_in.utils.AppUtils
 import com.example.lock_in.utils.UsageStatsHelper
 import io.flutter.embedding.android.FlutterActivity
@@ -40,6 +42,8 @@ class MainActivity: FlutterActivity() {
     private lateinit var sessionManager: FocusSessionManager
     private lateinit var appLimitManager: AppLimitManager
     private lateinit var blockingConfig: BlockingConfig
+    private lateinit var shortFormBlockManager: ShortFormBlockManager
+    private lateinit var websiteBlockManager: WebsiteBlockManager
 
 
     // Method channels
@@ -107,6 +111,8 @@ class MainActivity: FlutterActivity() {
             sessionManager = FocusSessionManager.getInstance(this)
             appLimitManager = AppLimitManager(this)
             blockingConfig = BlockingConfig.getInstance(this)
+            shortFormBlockManager = ShortFormBlockManager.getInstance(this)
+            websiteBlockManager = WebsiteBlockManager.getInstance(this)
 
             Log.d(TAG, "All managers initialized successfully")
         } catch (e: Exception) {
@@ -421,7 +427,70 @@ class MainActivity: FlutterActivity() {
                         result.success(blockingConfig.getPersistentBlockedWebsites())
                     }
 
+                    // Individual website management (for WebsiteBlockManager)
+                    "addBlockedWebsite" -> {
+                        val args = arguments as? Map<*, *>
+                        val url = args?.get("url") as? String
+                        val name = args?.get("name") as? String
+                        val isActive = args?.get("isActive") as? Boolean ?: true
+                        
+                        if (url != null && name != null) {
+                            websiteBlockManager.addBlockedWebsite(url, name, isActive)
+                            result.success(true)
+                        } else {
+                            result.error("INVALID_ARGS", "url and name are required", null)
+                        }
+                    }
+
+                    "removeBlockedWebsite" -> {
+                        val args = arguments as? Map<*, *>
+                        val url = args?.get("url") as? String
+                        
+                        if (url != null) {
+                            websiteBlockManager.removeBlockedWebsite(url)
+                            result.success(true)
+                        } else {
+                            result.error("INVALID_ARGS", "url is required", null)
+                        }
+                    }
+
+                    "getBlockedWebsites" -> {
+                        val websites = websiteBlockManager.getBlockedWebsites().map { website ->
+                            mapOf(
+                                "url" to website.url,
+                                "name" to website.name,
+                                "isActive" to website.isActive
+                            )
+                        }
+                        result.success(websites)
+                    }
+
                     // Short-form content blocking
+                    "setShortFormBlock" -> {
+                        val args = arguments as? Map<*, *>
+                        val platform = args?.get("platform") as? String
+                        val feature = args?.get("feature") as? String
+                        val isBlocked = args?.get("isBlocked") as? Boolean ?: false
+                        
+                        if (platform != null && feature != null) {
+                            shortFormBlockManager.setShortFormBlock(platform, feature, isBlocked)
+                            result.success(true)
+                        } else {
+                            result.error("INVALID_ARGS", "platform and feature are required", null)
+                        }
+                    }
+
+                    "getShortFormBlocks" -> {
+                        val blocks = shortFormBlockManager.getAllBlocks().map { block ->
+                            mapOf(
+                                "platform" to block.platform,
+                                "feature" to block.feature,
+                                "isBlocked" to block.isBlocked
+                            )
+                        }
+                        result.success(blocks)
+                    }
+
                     "setPersistentShortFormBlocking" -> {
                         val args = arguments as? Map<*, *>
                         val enabled = args?.get("enabled") as? Boolean ?: false

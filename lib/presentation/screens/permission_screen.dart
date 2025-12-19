@@ -68,13 +68,12 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
             await ref
                 .read(permissionProvider.notifier)
                 .completePermissions(user.uid);
-            
+
             // Navigate to SplashScreen after successful completion
             if (mounted) {
-              Navigator.of(context).pushNamedAndRemoveUntil(
-                '/',
-                (route) => false,
-              );
+              Navigator.of(
+                context,
+              ).pushNamedAndRemoveUntil('/', (route) => false);
             }
           }
         },
@@ -215,13 +214,12 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
                         await ref
                             .read(permissionProvider.notifier)
                             .completePermissions(user.uid);
-                        
+
                         // Navigate to SplashScreen after successful completion
                         if (mounted) {
-                          Navigator.of(context).pushNamedAndRemoveUntil(
-                            '/',
-                            (route) => false,
-                          );
+                          Navigator.of(
+                            context,
+                          ).pushNamedAndRemoveUntil('/', (route) => false);
                         }
                       } catch (e) {
                         if (mounted) {
@@ -277,7 +275,8 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
     final permissionNotifier = ref.read(permissionProvider.notifier);
     debugPrint('Permission State Changed: $permissionState');
 
-    // Listen for permission changes and complete setup when all are granted
+    // Listen for permission changes but DO NOT auto-navigate
+    // User must manually confirm completion via the button
     ref.listen(permissionProvider, (previous, current) {
       if (!mounted) return;
 
@@ -286,17 +285,14 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
         _hasCompletedPermissions = false;
       }
 
-      // PRIINT ALL PERMISSION TRUE OR FALSE WITH CLEAN PRINT TO IDENTITY
-
-      // Handle completion when all permissions are granted for the first time
-      if (previous != null &&
-          !previous.allGranted &&
-          current.allGranted &&
-          !_hasCompletedPermissions &&
-          !current.hasCompletedSetup) {
-        _hasCompletedPermissions = true;
-        _handlePermissionsCompleted(current);
-      }
+      // Log permission status for debugging
+      debugPrint('Permissions updated - All granted: ${current.allGranted}');
+      debugPrint('  Usage: ${current.usagePermission}');
+      debugPrint('  Background: ${current.backgroundPermission}');
+      debugPrint('  Overlay: ${current.overlayPermission}');
+      debugPrint('  Display Popup: ${current.displayPopupPermission}');
+      debugPrint('  Accessibility: ${current.accessibilityPermission}');
+      debugPrint('  Notification: ${current.notificationPermission}');
     });
 
     final permissions = [
@@ -329,8 +325,7 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen>
       },
       {
         'title': 'Notification permission',
-        'description':
-            'Allow the app to send you notifications.',
+        'description': 'Allow the app to send you notifications.',
         'granted': permissionState.notificationPermission,
         'onTap': () async {
           await permissionNotifier.requestNotificationPermission();

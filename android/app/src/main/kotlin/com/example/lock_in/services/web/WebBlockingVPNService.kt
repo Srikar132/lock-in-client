@@ -12,7 +12,7 @@ import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import com.example.lock_in.R
 import com.example.lock_in.services.focus.FocusSessionManager
-import com.example.lock_in.services.overlay.OverlayLauncher
+import com.example.lock_in.services.overlay.SimpleBlockOverlay
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -113,7 +113,6 @@ class WebBlockingVPNService : VpnService() {
     private var isRunning = false
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private lateinit var sessionManager: FocusSessionManager
-    private lateinit var overlayLauncher: OverlayLauncher
 
     // Blocking configuration
     private val blockedDomains = ConcurrentHashMap<String, BlockedWebsite>()
@@ -128,7 +127,6 @@ class WebBlockingVPNService : VpnService() {
         Log.d(TAG, "WebBlockingVPNService created")
 
         sessionManager = FocusSessionManager.getInstance(this)
-        overlayLauncher = OverlayLauncher.getInstance(this)
         createNotificationChannel()
     }
 
@@ -573,12 +571,15 @@ class WebBlockingVPNService : VpnService() {
                 "This website is blocked"
             }
 
-            overlayLauncher.showWebsiteBlockOverlay(
+            SimpleBlockOverlay.showWebsite(
+                context = applicationContext,
                 url = "https://$domain",
                 reason = reason
-            )
+            ) {
+                Log.d(TAG, "✅ Website blocked overlay dismissed for $domain")
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Error showing website blocked overlay", e)
+            Log.e(TAG, "❌ Error showing website blocked overlay", e)
         }
     }
 

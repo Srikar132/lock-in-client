@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/overlayRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#B3000000"
+    android:clickable="true"
+    android:focusable="true">
+
+    <!-- Settings button in top right -->
+    <LinearLayout
+        android:id="@+id/settingsButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
+        android:background="@android:drawable/dialog_holo_dark_frame"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@android:drawable/ic_menu_manage"
+            android:tint="#FFFFFF"
+            android:layout_marginEnd="8dp"
+            android:contentDescription="Settings" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Settings"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+
+    </LinearLayout>
+
+    <!-- Tap to dismiss hint (centered at top) -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="100dp"
+        android:text="Tap anywhere to dismiss"
+        android:textColor="#B0B0B0"
+        android:textSize="13sp"
+        android:gravity="center"
+        android:alpha="0.8" />
+
+    <!-- Bottom content container with dark background -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:orientation="vertical"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="80dp"
+        android:background="#DD000000"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingTop="32dp"
+        android:paddingBottom="32dp"
+        android:gravity="center_horizontal">
+
+        <!-- Block Title -->
+        <TextView
+            android:id="@+id/blockTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="YouTube Shorts is Blocked!"
+            android:textColor="#FFFFFF"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Countdown Progress Bar -->
+        <ProgressBar
+            android:id="@+id/countdownProgress"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="240dp"
+            android:layout_height="6dp"
+            android:max="100"
+            android:progress="100"
+            android:progressTint="#FF6B35"
+            android:progressBackgroundTint="#40FFFFFF"
+            android:layout_marginTop="8dp" />
+
+    </LinearLayout>
+
+</FrameLayout>

@@ -9,7 +9,8 @@ class BlockedShortsOverlay extends ConsumerStatefulWidget {
   const BlockedShortsOverlay({super.key});
 
   @override
-  ConsumerState<BlockedShortsOverlay> createState() => _BlockedShortsOverlayState();
+  ConsumerState<BlockedShortsOverlay> createState() =>
+      _BlockedShortsOverlayState();
 }
 
 class _BlockedShortsOverlayState extends ConsumerState<BlockedShortsOverlay>
@@ -48,10 +49,10 @@ class _BlockedShortsOverlayState extends ConsumerState<BlockedShortsOverlay>
       ref.read(overlayDataProvider.notifier).vibrate('double');
     });
 
-    // Auto-dismiss after 3 seconds if no interaction
-    Future.delayed(const Duration(seconds: 3), () {
+    // Auto-dismiss after 2 seconds - close activity and return to YouTube
+    Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
-        ref.read(overlayDataProvider.notifier).goHome();
+        ref.read(overlayDataProvider.notifier).closeOverlay();
       }
     });
   }
@@ -69,23 +70,24 @@ class _BlockedShortsOverlayState extends ConsumerState<BlockedShortsOverlay>
     final overlayState = ref.watch(overlayDataProvider);
     final overlayNotifier = ref.read(overlayDataProvider.notifier);
 
-    if (overlayState. isLoading) {
+    if (overlayState.isLoading) {
       return const Scaffold(
         backgroundColor: Colors.black,
-        body: Center(
-          child: CircularProgressIndicator(color: Colors.white),
-        ),
+        body: Center(child: CircularProgressIndicator(color: Colors.white)),
       );
     }
 
-    final contentType = overlayState. overlayData['contentType'] as String? ?? 'Short Content';
-    final platform = overlayState. overlayData['platform'] as String? ??  'Unknown';
-    final educationalMessage = overlayState.overlayData['educationalMessage'] as String? ??
+    final contentType =
+        overlayState.overlayData['contentType'] as String? ?? 'Short Content';
+    final platform =
+        overlayState.overlayData['platform'] as String? ?? 'Unknown';
+    final educationalMessage =
+        overlayState.overlayData['educationalMessage'] as String? ??
         'Short-form content is designed to be addictive. Stay focused!';
 
     return PopScope(
       canPop: false,
-      child:  Scaffold(
+      child: Scaffold(
         body: OverlayBackground(
           gradient: _getPlatformGradient(platform),
           child: SafeArea(
@@ -114,13 +116,16 @@ class _BlockedShortsOverlayState extends ConsumerState<BlockedShortsOverlay>
 
                     // Focus timer
                     SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.5),
-                        end: Offset.zero,
-                      ).animate(CurvedAnimation(
-                        parent: _textController,
-                        curve: Curves.easeOut,
-                      )),
+                      position:
+                          Tween<Offset>(
+                            begin: const Offset(0, 0.5),
+                            end: Offset.zero,
+                          ).animate(
+                            CurvedAnimation(
+                              parent: _textController,
+                              curve: Curves.easeOut,
+                            ),
+                          ),
                       child: FocusTimerWidget(
                         elapsedMinutes: overlayState.focusTimeMinutes,
                         sessionType: overlayState.sessionType,
@@ -146,7 +151,6 @@ class _BlockedShortsOverlayState extends ConsumerState<BlockedShortsOverlay>
                         color: Colors.orange,
                       ),
                     ),*/
-
                     const SizedBox(height: 24),
 
                     // Platform-specific tips
@@ -160,8 +164,7 @@ class _BlockedShortsOverlayState extends ConsumerState<BlockedShortsOverlay>
                       )),
                       child: PlatformSpecificTips(platform: platform),
                     ),*/
-
-                    const SizedBox(height:  32),
+                    const SizedBox(height: 32),
 
                     // Quick action buttons
                     FadeTransition(
@@ -185,14 +188,16 @@ class _BlockedShortsOverlayState extends ConsumerState<BlockedShortsOverlay>
         // Outer wave
         AnimatedBuilder(
           animation: _waveController,
-          builder:  (context, child) {
+          builder: (context, child) {
             return Container(
               width: 180 + (_waveController.value * 40),
-              height:  180 + (_waveController.value * 40),
+              height: 180 + (_waveController.value * 40),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: _getPlatformColor(platform).withOpacity(0.3 - (_waveController.value * 0.3)),
+                  color: _getPlatformColor(
+                    platform,
+                  ).withOpacity(0.3 - (_waveController.value * 0.3)),
                   width: 2,
                 ),
               ),
@@ -206,11 +211,13 @@ class _BlockedShortsOverlayState extends ConsumerState<BlockedShortsOverlay>
           builder: (context, child) {
             return Container(
               width: 130 + (_waveController.value * 25),
-              height:  130 + (_waveController.value * 25),
+              height: 130 + (_waveController.value * 25),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: _getPlatformColor(platform).withOpacity(0.5 - (_waveController.value * 0.5)),
+                  color: _getPlatformColor(
+                    platform,
+                  ).withOpacity(0.5 - (_waveController.value * 0.5)),
                   width: 3,
                 ),
               ),
@@ -223,7 +230,7 @@ class _BlockedShortsOverlayState extends ConsumerState<BlockedShortsOverlay>
           width: 80,
           height: 80,
           decoration: BoxDecoration(
-            shape: BoxShape. circle,
+            shape: BoxShape.circle,
             color: _getPlatformColor(platform),
             boxShadow: [
               BoxShadow(
@@ -257,17 +264,17 @@ class _BlockedShortsOverlayState extends ConsumerState<BlockedShortsOverlay>
         ),
         const SizedBox(height: 8),
         Container(
-          padding:  const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          decoration:  BoxDecoration(
-            color: Colors. red.withOpacity(0.2),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.red.withOpacity(0.2),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors. red.withOpacity(0.5)),
+            border: Border.all(color: Colors.red.withOpacity(0.5)),
           ),
           child: const Text(
             'Addictive Content Detected',
             style: TextStyle(
               color: Colors.red,
-              fontWeight: FontWeight. w600,
+              fontWeight: FontWeight.w600,
               fontSize: 14,
             ),
           ),
@@ -281,15 +288,16 @@ class _BlockedShortsOverlayState extends ConsumerState<BlockedShortsOverlay>
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         _buildQuickActionButton(
-          icon: Icons.home,
-          label: 'Home',
+          icon: Icons.close,
+          label: 'Continue',
           color: Colors.green,
-          onPressed: () => notifier.goHome(),
+          onPressed: () =>
+              notifier.closeOverlay(), // Close activity and return to YouTube
         ),
         _buildQuickActionButton(
           icon: Icons.arrow_back,
-          label:  'Back',
-          color: Colors. blue,
+          label: 'Back',
+          color: Colors.blue,
           onPressed: () => notifier.goBack(),
         ),
         _buildQuickActionButton(
@@ -308,7 +316,7 @@ class _BlockedShortsOverlayState extends ConsumerState<BlockedShortsOverlay>
     required Color color,
     required VoidCallback onPressed,
   }) {
-    return ElevatedButton. icon(
+    return ElevatedButton.icon(
       onPressed: onPressed,
       icon: Icon(icon, size: 18),
       label: Text(label),
@@ -335,8 +343,8 @@ class _BlockedShortsOverlayState extends ConsumerState<BlockedShortsOverlay>
       case 'instagram':
         return const LinearGradient(
           colors: [Color(0xFF1A1A1A), Color(0xFF2A1A2A)],
-          begin: Alignment. topLeft,
-          end: Alignment. bottomRight,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         );
       case 'tiktok':
         return const LinearGradient(
@@ -358,9 +366,9 @@ class _BlockedShortsOverlayState extends ConsumerState<BlockedShortsOverlay>
       case 'youtube':
         return Colors.red;
       case 'instagram':
-        return Colors. purple;
+        return Colors.purple;
       case 'tiktok':
-        return Colors. pink;
+        return Colors.pink;
       case 'facebook':
         return Colors.blue;
       case 'snapchat':
@@ -375,15 +383,15 @@ class _BlockedShortsOverlayState extends ConsumerState<BlockedShortsOverlay>
       case 'youtube':
         return Icons.play_circle_outline;
       case 'instagram':
-        return Icons. camera_alt;
+        return Icons.camera_alt;
       case 'tiktok':
         return Icons.music_note;
       case 'facebook':
         return Icons.video_library;
       case 'snapchat':
-        return Icons. photo_camera;
+        return Icons.photo_camera;
       default:
-        return Icons. videocam_off;
+        return Icons.videocam_off;
     }
   }
 }

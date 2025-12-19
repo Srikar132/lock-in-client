@@ -310,9 +310,12 @@ class PermissionManager(private val activity: Activity) {
     }
 
     fun hasDisplayPopupPermission(): Boolean {
+        Log.d(TAG, "Display Popup Permission Check:")
+        
         // 1. First, check standard Overlay permission (Baseline requirement)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (!Settings.canDrawOverlays(activity)) {
+                Log.d(TAG, "  - Overlay permission not granted")
                 return false
             }
         }
@@ -320,6 +323,7 @@ class PermissionManager(private val activity: Activity) {
         // 2. SPECIFIC CHECK FOR XIAOMI (MIUI)
         // "Display pop-ups while running in background" is usually AppOps code 10021
         if (isXiaomi()) {
+            Log.d(TAG, "  - Device is Xiaomi, checking MIUI-specific permission")
             try {
                 val appOps = activity.getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager
                 if (appOps == null) {
@@ -342,7 +346,9 @@ class PermissionManager(private val activity: Activity) {
                 val opBackgroundStartActivity = 10021 
                 val mode = checkOpMethod.invoke(appOps, opBackgroundStartActivity, callingUid, pkgName) as Int
 
-                return mode == AppOpsManager.MODE_ALLOWED
+                val allowed = mode == AppOpsManager.MODE_ALLOWED
+                Log.d(TAG, "  - MIUI popup permission: $allowed (mode: $mode)")
+                return allowed
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to check MIUI specific permission", e)
                 // If reflection fails, we fallback to standard overlay check (better safe than sorry)
@@ -351,6 +357,7 @@ class PermissionManager(private val activity: Activity) {
         }
 
         // For non-Xiaomi devices, the standard overlay permission is usually enough
+        Log.d(TAG, "  - Non-Xiaomi device, using standard overlay check: true")
         return true
     }
 

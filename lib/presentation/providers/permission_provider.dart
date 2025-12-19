@@ -76,6 +76,8 @@ class PermissionState {
 // Permission notifier
 class PermissionNotifier extends Notifier<PermissionState> {
   late UserRepository _userRepository;
+  DateTime? _lastCheckTime;
+  static const _checkDebounceMs = 1000; // Minimum 1 second between checks
 
   @override
   PermissionState build() {
@@ -83,8 +85,17 @@ class PermissionNotifier extends Notifier<PermissionState> {
     return PermissionState();
   }
 
-  // Check all permissions
+  // Check all permissions with debounce to prevent infinite loops
   Future<void> checkPermissions() async {
+    // Debounce: Skip if checked less than 1 second ago
+    final now = DateTime.now();
+    if (_lastCheckTime != null &&
+        now.difference(_lastCheckTime!).inMilliseconds < _checkDebounceMs) {
+      debugPrint('⏱️ Permission check skipped (debounced)');
+      return;
+    }
+
+    _lastCheckTime = now;
     state = state.copyWith(isChecking: true);
 
     try {
@@ -94,8 +105,7 @@ class PermissionNotifier extends Notifier<PermissionState> {
           await NativeService.hasNotificationPermission();
       final accessibilityGranted =
           await NativeService.hasAccessibilityPermission();
-      final backgroundGranted =
-          await NativeService.hasBackgroundPermission();
+      final backgroundGranted = await NativeService.hasBackgroundPermission();
       final displayPopupGranted =
           await NativeService.hasDisplayPopupPermission();
 
@@ -154,11 +164,13 @@ class PermissionNotifier extends Notifier<PermissionState> {
     state = state.copyWith(isCompletingSetup: true);
 
     try {
-      // Update permission status in Firestore
-      await _userRepository.updatePermissionStatus(userId, true);
+      // Mark permissions as completed in local state only
+      // No database dependency - permissions are checked in real-time via native service
       state = state.copyWith(isCompletingSetup: false, hasCompletedSetup: true);
-      
-      debugPrint('Permissions completed successfully, navigating to SplashScreen');
+
+      debugPrint(
+        'Permissions completed successfully, navigating to SplashScreen',
+      );
     } catch (e) {
       debugPrint('Error completing permissions: $e');
       state = state.copyWith(isCompletingSetup: false);
