@@ -8,6 +8,7 @@ import 'package:lock_in/presentation/providers/focus_session_provider.dart';
 import 'package:lock_in/presentation/providers/blocked_content_provider.dart';
 import 'package:lock_in/presentation/providers/settings_provider.dart';
 import 'package:lock_in/presentation/providers/background_image_provider.dart';
+import 'package:lock_in/presentation/providers/usage_stats_provider.dart';
 import 'package:lock_in/presentation/screens/active_focus_screen.dart';
 import 'package:lock_in/presentation/screens/profile_screen.dart';
 import 'package:lock_in/presentation/screens/usage_stats_screen.dart';
@@ -336,36 +337,58 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
 
         const Spacer(),
 
-        // Usage Time Card
-        GestureDetector(
-          onTap: () {
-            // Handle tap on usage card
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder:  (context) => const UsageStatsScreen())
+        // Usage Time Card - Using today's usage stats (excluding lock_in app)
+        Consumer(
+          builder: (context, ref, child) {
+            final todayUsageAsync = ref.watch(todayUsageStatsProvider);
+            
+            return todayUsageAsync.when(
+              data: (usageStats) {
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const UsageStatsScreen())
+                    );
+                  },
+                  child: _buildStatCard(
+                    label: 'Usage',
+                    value: usageStats.formattedTotalTimeExcludingSelf,
+                    backgroundColor: Colors.white.withOpacity(0.15),
+                  ),
+                );
+              },
+              loading: () => GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const UsageStatsScreen())
+                  );
+                },
+                child: _buildStatCard(
+                  label: 'Usage',
+                  value: '...',
+                  backgroundColor: Colors.white.withOpacity(0.15),
+                ),
+              ),
+              error: (_, __) => GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const UsageStatsScreen())
+                  );
+                },
+                child: _buildStatCard(
+                  label: 'Usage',
+                  value: '0m',
+                  backgroundColor: Colors.white.withOpacity(0.15),
+                ),
+              ),
             );
           },
-          child: _buildStatCard(
-            label: 'Usage',
-            value: _formatDuration(user.totalFocusTime),
-            backgroundColor: Colors.white.withOpacity(0.15),
-          ),
         ),
 
-        const SizedBox(width: 6),
-
-        // Focus Time Card
-        GestureDetector(
-          onTap: () {
-            // Handle tap on focus time card
-           
-          },
-          child: _buildStatCard(
-            label: 'Focus',
-            value: '0m',
-            backgroundColor: Colors.white.withOpacity(0.15),
-          ),
-        ),
+      
 
         const Spacer(),
 
@@ -419,7 +442,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
         border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
@@ -442,15 +465,5 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
         ],
       ),
     );
-  }
-
-  String _formatDuration(int milliseconds) {
-    final hours = milliseconds ~/ (1000 * 60 * 60);
-    final minutes = (milliseconds % (1000 * 60 * 60)) ~/ (1000 * 60);
-
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    }
-    return '${minutes}m';
   }
 }

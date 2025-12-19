@@ -34,10 +34,10 @@ class AppUsageStats {
       totalUsageHours: (map['totalUsageHours'] ?? 0.0).toDouble(),
       sessions: map['sessions'] ?? 0,
       lastUsed: map['lastUsed'] ?? 0,
+      // FIXED: Kotlin already sends minutes, don't convert again
       dailyUsage: Map<String, int>.from(
         (map['dailyUsage'] ?? <String, dynamic>{}).map(
-          (key, value) =>
-              MapEntry(key, (value is int) ? value : (value / 60000).round()),
+          (key, value) => MapEntry(key, (value is int) ? value : value.toInt()),
         ),
       ),
       category: _getAppCategory(map['packageName'] ?? ''),
@@ -83,6 +83,12 @@ class AppUsageStats {
         packageName.contains('zoom') ||
         packageName.contains('teams')) {
       return AppCategory.productive;
+    }
+
+    // ADDED: Filter out your own app from stats
+    if (packageName.contains('lock_in') || 
+        packageName == 'com.example.lock_in') {
+      return AppCategory.others; // Or create a new category to hide it
     }
 
     return AppCategory.others;
@@ -216,6 +222,10 @@ class UsageStatsResponse {
   List<AppUsageStats> get otherApps =>
       apps.where((app) => app.category == AppCategory.others).toList();
 
+  // ADDED: Filter out the lock_in app from all lists
+  List<AppUsageStats> get appsExcludingSelf =>
+      apps.where((app) => !app.packageName.contains('lock_in')).toList();
+
   int get totalDistractingTime =>
       distractingApps.fold(0, (sum, app) => sum + app.totalUsageMinutes);
 
@@ -224,6 +234,10 @@ class UsageStatsResponse {
 
   int get totalOthersTime =>
       otherApps.fold(0, (sum, app) => sum + app.totalUsageMinutes);
+
+  // ADDED: Total time excluding the lock_in app
+  int get totalUsageExcludingSelf =>
+      appsExcludingSelf.fold(0, (sum, app) => sum + app.totalUsageMinutes);
 
   String get formattedDistractingTime {
     final hours = totalDistractingTime / 60;
@@ -256,6 +270,18 @@ class UsageStatsResponse {
       return '${h}h ${m}m';
     }
     return '${totalOthersTime}m';
+  }
+
+  // ADDED: Formatted time excluding lock_in app
+  String get formattedTotalTimeExcludingSelf {
+    final hours = totalUsageExcludingSelf / 60;
+    if (hours >= 1) {
+      final h = hours.floor();
+      final m = (totalUsageExcludingSelf % 60);
+      if (m == 0) return '${h}h';
+      return '${h}h ${m}m';
+    }
+    return '${totalUsageExcludingSelf}m';
   }
 }
 

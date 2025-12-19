@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lock_in/presentation/providers/focus_session_provider.dart';
-import 'package:lock_in/presentation/providers/blocked_content_provider.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
 import 'package:lock_in/presentation/providers/background_image_provider.dart';
 import 'package:lock_in/core/constants/images.dart';
@@ -13,6 +13,7 @@ import 'package:lock_in/models/model_manager.dart';
 import 'package:lock_in/models/end_session_bottom_sheet.dart';
 import 'package:lock_in/models/audio_bottom_model.dart';
 import 'package:lock_in/presentation/screens/save_session_screen.dart';
+import 'package:lock_in/services/audio_service.dart';
 
 class ActiveFocusScreen extends ConsumerStatefulWidget {
   final String sessionId;
@@ -34,6 +35,10 @@ class _ActiveFocusScreenState extends ConsumerState<ActiveFocusScreen>
     with TickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+  final AudioService _audioService = AudioService();
+  
+  // KEY FIX: Track if navigation is already in progress
+  bool _isNavigating = false;
 
   @override
   void initState() {
@@ -46,6 +51,23 @@ class _ActiveFocusScreenState extends ConsumerState<ActiveFocusScreen>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
     _pulseController.repeat();
+
+    // Play haptic vibration and sound when session starts
+    _playSessionStartFeedback();
+  }
+
+  Future<void> _playSessionStartFeedback() async {
+    try {
+
+      await Future.delayed(const Duration(milliseconds: 100));
+      // Play haptic feedback
+      await HapticFeedback.vibrate();
+      
+      // Play focus start sound
+      await _audioService.playFocusStartSound();
+    } catch (e) {
+      debugPrint('Error playing session start feedback: $e');
+    }
   }
 
   @override
@@ -72,7 +94,7 @@ class _ActiveFocusScreenState extends ConsumerState<ActiveFocusScreen>
     }
   }
 
-    void _showBackgroundSelector() {
+  void _showBackgroundSelector() {
     BottomSheetManager.show(
       context: context,
       height: MediaQuery.of(context).size.height * 0.8,
@@ -102,10 +124,7 @@ class _ActiveFocusScreenState extends ConsumerState<ActiveFocusScreen>
       try {
         debugPrint('🎯 _endSession: Calling endSession()');
         await ref.read(focusSessionProvider.notifier).endSession();
-        debugPrint(
-          '🎯 _endSession: endSession() completed, listener will handle navigation',
-        );
-        // Navigation will be handled by the listener when status changes to endingWithSave
+        debugPrint('🎯 _endSession: endSession() completed, listener will handle navigation');
       } catch (e) {
         debugPrint('Error ending session: $e');
         _showErrorSnackBar('Failed to end session');
@@ -129,80 +148,107 @@ class _ActiveFocusScreenState extends ConsumerState<ActiveFocusScreen>
     }
   }
 
+  // KEY FIX: Synchronous navigation without PostFrameCallback
+  void _navigateToSaveScreen() {
+    // Prevent duplicate navigation
+    if (_isNavigating) {
+      debugPrint('🎯 Navigation already in progress, skipping');
+      return;
+    }
+
+    if (!mounted) {
+      debugPrint('🎯 Widget not mounted, cannot navigate');
+      return;
+    }
+
+    _isNavigating = true;
+    debugPrint('🎯 Starting navigation to SaveSessionScreen');
+
+    try {
+      final sessionData = ref
+          .read(focusSessionProvider.notifier)
+          .getCurrentSessionData();
+      
+      debugPrint('🎯 Session data retrieved: $sessionData');
+
+      // Use pushReplacement to replace current screen
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => SaveSessionScreen(sessionData: sessionData),
+        ),
+      ).then((_) {
+        debugPrint('🎯 Navigation completed');
+        _isNavigating = false;
+      }).catchError((error) {
+        debugPrint('🎯 Navigation error: $error');
+        _isNavigating = false;
+      });
+      
+      debugPrint('🎯 Navigation initiated successfully');
+    } catch (e, stackTrace) {
+      debugPrint('🎯 Error during navigation: $e');
+      debugPrint('🎯 Stack trace: $stackTrace');
+      _isNavigating = false;
+    }
+  }
+
+  // KEY FIX: Synchronous navigation for completed state
+  void _navigateToHome() {
+    if (_isNavigating) {
+      debugPrint('🎯 Navigation already in progress, skipping home navigation');
+      return;
+    }
+
+    if (!mounted) {
+      debugPrint('🎯 Widget not mounted, cannot navigate to home');
+      return;
+    }
+
+    _isNavigating = true;
+    debugPrint('🎯 Navigating to home');
+
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+    
+    _isNavigating = false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final sessionState = ref.watch(focusSessionProvider);
     final user = ref.watch(currentUserProvider).value;
 
-    // Listen to session status changes for navigation
-    // Listen to session status changes for navigation
+    // KEY FIX: Listen and navigate immediately in the same frame
     ref.listen<FocusSessionState>(focusSessionProvider, (previous, next) {
       debugPrint(
         '🎯 ActiveFocusScreen: Status changed from ${previous?.status} to ${next.status}',
       );
 
-      // Handle endingWithSave by navigating to save screen
+      // Handle endingWithSave - navigate to save screen
       if (next.status == FocusSessionStatus.endingWithSave) {
         debugPrint('🎯 ActiveFocusScreen: Detected endingWithSave status');
-
-        // Use WidgetsBinding to ensure navigation happens after current frame
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          debugPrint('🎯 ActiveFocusScreen: PostFrameCallback executing');
-
-          if (!mounted) {
-            debugPrint(
-              '🎯 ActiveFocusScreen: Widget not mounted, skipping navigation',
-            );
-            return;
-          }
-
-          try {
-            final sessionData = ref
-                .read(focusSessionProvider.notifier)
-                .getCurrentSessionData();
-            debugPrint(
-              '🎯 ActiveFocusScreen: Session data retrieved: $sessionData',
-            );
-
-            // Use pushReplacement instead of pushAndRemoveUntil to avoid conflicts
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(
-                builder: (context) {
-                  debugPrint(
-                    '🎯 SaveSessionScreen: MaterialPageRoute builder called',
-                  );
-                  return SaveSessionScreen(sessionData: sessionData);
-                },
-              ),
-            );
-            debugPrint(
-              '🎯 ActiveFocusScreen: Navigation to SaveSessionScreen initiated',
-            );
-          } catch (e, stackTrace) {
-            debugPrint('🎯 ActiveFocusScreen: Navigation error: $e');
-            debugPrint('🎯 ActiveFocusScreen: Stack trace: $stackTrace');
-          }
-        });
+        // Call navigation immediately, no PostFrameCallback
+        _navigateToSaveScreen();
       }
-      // Handle completed and idle states by going back to home
+      // Handle completed and idle states - go back to home
       else if (next.status == FocusSessionStatus.completed ||
           next.status == FocusSessionStatus.idle) {
         debugPrint(
           '🎯 ActiveFocusScreen: Navigating to home (status: ${next.status})',
         );
-
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && Navigator.of(context).canPop()) {
-            Navigator.of(context).pop();
-          }
-        });
+        _navigateToHome();
       }
     });
+
     return PopScope(
       canPop: false,
+      onPopInvokedWithResult: (bool result , dynamic dya) {
+        _playSessionStartFeedback();
+      },
       child: Stack(
         children: [
-          // Background Image Layer - Now using dynamic background
+          // Background Image Layer
           Positioned.fill(
             child: Consumer(
               builder: (context, ref, child) {
@@ -211,7 +257,6 @@ class _ActiveFocusScreenState extends ConsumerState<ActiveFocusScreen>
                   currentBackground,
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
-                    // Fallback to default if image fails to load
                     return Image.asset(
                       kHomeBackgroundImage,
                       fit: BoxFit.cover,
@@ -230,35 +275,35 @@ class _ActiveFocusScreenState extends ConsumerState<ActiveFocusScreen>
                 child: Padding(
                   padding: const EdgeInsets.all(12.0),
                   child: Column(
-                  children: [
-                    // Header with notification banner
-                    _buildHeader(sessionState),
-              
-                    const SizedBox(height: 60),
-              
-                    // Main Timer Circle
-                    _buildTimerCircle(sessionState),
-              
-                    const Spacer(),
-              
-                    // Lumo Mascot
-                    LumoMascotWidget(onTap: () {}),
-              
-                    const SizedBox(height: 50),
-              
-                    // Control Buttons
-                    _buildControlButtons(sessionState),
-              
-                    const SizedBox(height: 20),
-              
-                    // Bottom Navigation Icons
-                    _buildBottomNavigation(user),
-              
-                    const SizedBox(height: 5),
-                  ],
+                    children: [
+                      // Header with notification banner
+                      _buildHeader(sessionState),
+                
+                      const SizedBox(height: 60),
+                
+                      // Main Timer Circle
+                      _buildTimerCircle(sessionState),
+                
+                      const Spacer(),
+                
+                      // Lumo Mascot
+                      LumoMascotWidget(onTap: () {}),
+                
+                      const SizedBox(height: 50),
+                
+                      // Control Buttons
+                      _buildControlButtons(sessionState),
+                
+                      const SizedBox(height: 20),
+                
+                      // Bottom Navigation Icons
+                      _buildBottomNavigation(user),
+                
+                      const SizedBox(height: 5),
+                    ],
+                  ),
                 ),
               ),
-                            ),
             ),
           ),
         ],
@@ -373,8 +418,6 @@ class _ActiveFocusScreenState extends ConsumerState<ActiveFocusScreen>
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Outer glow effect
-
           // Progress ring
           SizedBox(
             width: 250,
@@ -531,11 +574,11 @@ class _ActiveFocusScreenState extends ConsumerState<ActiveFocusScreen>
   Color _getProgressColor(String sessionType) {
     switch (sessionType.toLowerCase()) {
       case 'timer':
-        return const Color(0xFF4CAF50); // Green
+        return const Color(0xFF4CAF50);
       case 'stopwatch':
-        return const Color(0xFF2196F3); // Blue
+        return const Color(0xFF2196F3);
       case 'pomodoro':
-        return const Color(0xFFFF5722); // Orange-red
+        return const Color(0xFFFF5722);
       default:
         return const Color(0xFF4CAF50);
     }
@@ -674,55 +717,12 @@ class _ActiveFocusScreenState extends ConsumerState<ActiveFocusScreen>
             true,
             onTap: _showAudioBottomSheet,
           ),
-          _buildNavIcon(Icons.auto_awesome, 'Theme', true , onTap : _showBackgroundSelector),
+          _buildNavIcon(Icons.auto_awesome, 'Theme', true, onTap: _showBackgroundSelector),
           _buildNavIcon(
             Icons.apps,
             'Apps',
             true,
             onTap: _showAllowedAppsDrawer,
-            // blockedContentWidget: user != null
-            //     ? Consumer(
-            //         builder: (context, ref, child) {
-            //           final blockedContentAsync = ref.watch(
-            //             blockedContentProvider(user.uid),
-            //           );
-            //           return blockedContentAsync.when(
-            //             data: (content) {
-            //               final count = content.permanentlyBlockedApps.length;
-            //               if (count > 0) {
-            //                 return Positioned(
-            //                   right: -4,
-            //                   top: -4,
-            //                   child: Container(
-            //                     padding: const EdgeInsets.all(4),
-            //                     decoration: const BoxDecoration(
-            //                       color: Colors.red,
-            //                       shape: BoxShape.circle,
-            //                     ),
-            //                     constraints: const BoxConstraints(
-            //                       minWidth: 18,
-            //                       minHeight: 18,
-            //                     ),
-            //                     child: Text(
-            //                       '$count',
-            //                       style: const TextStyle(
-            //                         color: Colors.white,
-            //                         fontSize: 10,
-            //                         fontWeight: FontWeight.bold,
-            //                       ),
-            //                       textAlign: TextAlign.center,
-            //                     ),
-            //                   ),
-            //                 );
-            //               }
-            //               return const SizedBox.shrink();
-            //             },
-            //             loading: () => const SizedBox.shrink(),
-            //             error: (_, __) => const SizedBox.shrink(),
-            //           );
-            //         },
-            //       )
-            //     : null,
           ),
         ],
       ),
@@ -821,10 +821,8 @@ class CircularProgressPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round;
 
       if (isPaused) {
-        // Paused state - dimmed color
         progressPaint.color = progressColor.withOpacity(0.5);
       } else if (isPulsing) {
-        // Pulsing effect for stopwatch
         final pulseProgress = animationValue ?? 0.5;
         progressPaint.color = Color.lerp(
           progressColor.withOpacity(0.6),
@@ -832,11 +830,9 @@ class CircularProgressPainter extends CustomPainter {
           pulseProgress,
         )!;
       } else {
-        // Normal progress color
         progressPaint.color = progressColor;
       }
 
-      // Add gradient effect
       if (!isPaused && !isPulsing) {
         final rect = Rect.fromCircle(center: center, radius: radius);
         progressPaint.shader = SweepGradient(
@@ -856,14 +852,13 @@ class CircularProgressPainter extends CustomPainter {
 
       canvas.drawArc(
         Rect.fromCircle(center: center, radius: radius),
-        -math.pi / 2, // Start from top
+        -math.pi / 2,
         sweepAngle,
         false,
         progressPaint,
       );
     }
 
-    // Inner highlight ring
     if (progress > 0.1 || isPulsing) {
       final highlightPaint = Paint()
         ..color = Colors.white.withOpacity(0.3)

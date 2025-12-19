@@ -25,9 +25,12 @@ class BackgroundImageConstants {
   static const List<String> availableBackgrounds = [
     'assets/images/home-bg1.png',
     'assets/images/entry_bg.jpg',
-    'assets/images/image.png',
-    'assets/images/song-image1.png',
-    'assets/images/song-image2.png',
+    'assets/images/theme1.png',
+    'assets/images/theme2.png',
+    'assets/images/theme3.png',
+    'assets/images/theme4.png',
+    'assets/images/theme5.png',
+    'assets/images/theme6.png',
   ];
 
   static const List<String> backgroundNames = [
@@ -36,6 +39,10 @@ class BackgroundImageConstants {
     'Mountain Peaks',
     'Cherry Blossoms',
     'Sunset Valley',
+    'Desert Dunes',
+    'Forest Trail',
+    'City Lights',
+    'Rainy Day',
   ];
 
   // Get all backgrounds with their display names

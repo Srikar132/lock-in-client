@@ -86,13 +86,15 @@ class FocusSessionState {
 }
 
 // ============================================================================
-// FOCUS SESSION NOTIFIER (Fixed Type Casting)
+// FOCUS SESSION NOTIFIER
 // ============================================================================
 
 class FocusSessionNotifier extends Notifier<FocusSessionState> {
   StreamSubscription? _eventSubscription;
   Timer? _localTimer;
-  bool _isEndingForSave = false;
+  
+  // KEY FIX: Single source of truth for manual ending
+  bool _isManuallyEnding = false;
 
   @override
   FocusSessionState build() {
@@ -109,10 +111,9 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
       (event) {
         try {
           final eventType = event['event'] as String?;
-          // FIX: Safe cast with proper error handling
           final data = _safeConvertToMap(event['data']);
 
-          debugPrint('📡 Received native event: $eventType');
+          debugPrint('📡 Native event: $eventType | Manual ending: $_isManuallyEnding');
 
           switch (eventType) {
             case 'session_started':
@@ -126,7 +127,12 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
               break;
             case 'session_completed':
             case 'session_auto_completed':
-              _handleSessionCompleted(data);
+              // KEY FIX: Only auto-save if not manually ending
+              if (!_isManuallyEnding) {
+                _handleAutoCompletion(data);
+              } else {
+                debugPrint('🛑 Ignoring auto-completion - manual ending in progress');
+              }
               break;
             case 'timer_update':
               _handleTimerUpdate(data);
@@ -146,7 +152,6 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
     );
   }
 
-  /// FIX: Safely convert dynamic map to Map<String, dynamic>
   Map<String, dynamic>? _safeConvertToMap(dynamic data) {
     if (data == null) return null;
 
@@ -154,7 +159,6 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
       if (data is Map<String, dynamic>) {
         return data;
       } else if (data is Map) {
-        // Convert Map<Object?, Object?> to Map<String, dynamic>
         return Map<String, dynamic>.from(
           data.map((key, value) => MapEntry(key.toString(), value)),
         );
@@ -191,28 +195,17 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
     _startLocalTimer();
   }
 
-  void _handleSessionCompleted(Map<String, dynamic>? data) {
-    debugPrint(
-      '🔄 _handleSessionCompleted called. Current status: ${state.status}, _isEndingForSave: $_isEndingForSave',
-    );
+  // KEY FIX: Separate handler for auto-completion (timer finished naturally)
+  void _handleAutoCompletion(Map<String, dynamic>? data) {
+    debugPrint('🔄 Auto-completion detected - saving and going to home');
 
-    // CRITICAL FIX: If we're ending for save screen, ignore ALL native completion events
-    if (_isEndingForSave ||
-        state.status == FocusSessionStatus.endingWithSave ||
-        state.status == FocusSessionStatus.ending) {
-      debugPrint(
-        '🔄 Ignoring auto-completion - session is being ended for save screen',
-      );
-      return;
-    }
-
-    debugPrint('🔄 Setting status to completed from _handleSessionCompleted');
     state = state.copyWith(
       status: FocusSessionStatus.completed,
       isPaused: false,
     );
     _stopLocalTimer();
 
+    // Auto-save without user input
     if (data != null) {
       _saveCompletedSession(data);
     }
@@ -235,7 +228,6 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
     debugPrint('⚠️ Interruption detected: ${data['appName']}');
   }
 
-  /// Helper to safely extract integers from dynamic data
   int? _safeInt(dynamic value) {
     if (value == null) return null;
     if (value is int) return value;
@@ -272,7 +264,7 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
   }
 
   // ============================================================================
-  // SESSION CONTROL (Fixed Navigation Issue)
+  // SESSION CONTROL
   // ============================================================================
 
   Future<void> startSession({
@@ -292,7 +284,6 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
       final nativeSessionId = DateTime.now().millisecondsSinceEpoch.toString();
       final todayDate = _getTodayDateString();
 
-      // Start Native Session
       final success = await NativeService.startFocusSession(
         sessionId: nativeSessionId,
         userId: user.uid,
@@ -363,43 +354,36 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
     }
   }
 
-  // FIX: Proper error handling to prevent navigation crashes
+  // KEY FIX: Simplified endSession - just set flag and state
   Future<void> endSession() async {
     if (!state.isActive) {
       debugPrint('⚠️ No active session to end');
       return;
     }
 
-    // Set flag to indicate we're ending for save screen
-    _isEndingForSave = true;
-    debugPrint('🔄 Setting flag _isEndingForSave = true');
-
-    debugPrint('🔄 Setting status to ending...');
-    state = state.copyWith(status: FocusSessionStatus.ending);
-
+    debugPrint('🎯 Manual end session initiated');
+    
+    // Set flag FIRST to block any incoming auto-completion events
+    _isManuallyEnding = true;
+    
     try {
-      debugPrint('🔄 Calling native endFocusSession...');
+      // Stop native session
       final success = await NativeService.endFocusSession();
-
+      
       if (success) {
-        // CRITICAL FIX: Add a small delay to ensure the listener catches this state change
-        await Future.delayed(const Duration(milliseconds: 100));
-
-        // Set state to endingWithSave to trigger navigation to save screen
-        debugPrint('🔄 Setting status to endingWithSave...');
-        state = state.copyWith(status: FocusSessionStatus.endingWithSave);
+        // Stop timer
         _stopLocalTimer();
-
-        debugPrint(
-          '✅ Session ended, ready for save screen. Status: ${state.status}',
-        );
+        
+        // Set state to trigger navigation to save screen
+        state = state.copyWith(status: FocusSessionStatus.endingWithSave);
+        
+        debugPrint('✅ Session ended - navigating to save screen');
       } else {
         throw Exception('Failed to end native session');
       }
     } catch (e) {
       debugPrint('❌ Error ending session: $e');
-      // Even if there's an error, reset to idle to prevent stuck state
-      _isEndingForSave = false;
+      _isManuallyEnding = false;
       state = FocusSessionState(
         status: FocusSessionStatus.error,
         error: e.toString(),
@@ -417,7 +401,6 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
         _handleSessionStarted(mappedData);
         debugPrint('🔄 Focus session synchronized from Native');
       } else if (state.isActive) {
-        // Reset to idle if native layer confirms no active session
         state = FocusSessionState(status: FocusSessionStatus.idle);
         _stopLocalTimer();
       }
@@ -443,13 +426,12 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
             date: todayDate,
           );
 
-      debugPrint('✅ Session saved to Firestore');
+      debugPrint('✅ Session auto-saved to Firestore');
     } catch (e) {
       debugPrint('❌ Error saving completed session: $e');
     }
   }
 
-  // Get session data for save screen
   Map<String, dynamic> getCurrentSessionData() {
     return {
       'sessionId': state.sessionId,
@@ -462,7 +444,7 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
     };
   }
 
-  // Complete session with additional notes and tag
+  // KEY FIX: Reset flag when saving with notes
   Future<void> completeSessionWithNotes({String? notes, String? tag}) async {
     try {
       final user = ref.read(currentUserProvider).value;
@@ -471,7 +453,6 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
       final actualDuration = state.elapsedMinutes;
       final todayDate = _getTodayDateString();
 
-      // Update session with notes and tag
       await ref
           .read(sessionRepositoryProvider)
           .updateSession(state.sessionId!, {
@@ -483,36 +464,30 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
             'completedAt': todayDate,
           });
 
-      // IMPORTANT: Reset flag BEFORE changing status
-      _isEndingForSave = false;
-
-      // Now set to completed
+      // Reset flag and state
+      _isManuallyEnding = false;
       state = FocusSessionState(status: FocusSessionStatus.completed);
       _stopLocalTimer();
 
       debugPrint('✅ Session completed and saved with notes');
     } catch (e) {
       debugPrint('❌ Error completing session with notes: $e');
-      // Reset flag even on error
-      _isEndingForSave = false;
+      _isManuallyEnding = false;
       throw e;
     }
   }
 
+  // KEY FIX: Reset flag when discarding
   void discardSession() {
     try {
-      // IMPORTANT: Reset flag BEFORE changing status
-      _isEndingForSave = false;
-
-      // Now set to idle
+      _isManuallyEnding = false;
       state = FocusSessionState(status: FocusSessionStatus.idle);
       _stopLocalTimer();
 
       debugPrint('✅ Session discarded without saving');
     } catch (e) {
       debugPrint('❌ Error discarding session: $e');
-      // Reset flag even on error
-      _isEndingForSave = false;
+      _isManuallyEnding = false;
     }
   }
 }
