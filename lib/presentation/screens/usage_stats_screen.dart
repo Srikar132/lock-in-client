@@ -237,6 +237,9 @@ Widget _buildFilterChips(ThemeData theme) {
   Widget _buildDailyContent(UsageStatsResponse data) {
     final theme = Theme.of(context);
     final filteredApps = _getFilteredApps(data);
+
+    final totalMinutesExcludingSelf = data.totalUsageExcludingSelf;
+    final formattedTimeExcludingSelf = data.formattedTotalTimeExcludingSelf;
     
     return RefreshIndicator(
       onRefresh: () async {
@@ -258,7 +261,7 @@ Widget _buildFilterChips(ThemeData theme) {
                     child: Column(
                       children: [
                         Text(
-                          data.summary.formattedTotalTime,
+                          formattedTimeExcludingSelf,
                           style: theme.textTheme.displayLarge?.copyWith(
                             fontSize: 48,
                             fontWeight: FontWeight.bold,
@@ -394,31 +397,62 @@ Widget _buildFilterChips(ThemeData theme) {
     );
   }
 
-  Widget _buildCategoryBreakdown(UsageStatsResponse data, ThemeData theme) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _buildCategoryItem(
-          '${data.formattedDistractingTime}',
-          'Distracting',
-          const Color(0xFFFF8C00), // Orange
-          theme,
-        ),
-        _buildCategoryItem(
-          '${data.formattedProductiveTime}',
-          'Productive',
-          const Color(0xFF7ED957), // Green
-          theme,
-        ),
-        _buildCategoryItem(
-          '${data.formattedOthersTime}',
-          'Others',
-          const Color(0xFF8A8A8A), // Grey
-          theme,
-        ),
-      ],
-    );
+Widget _buildCategoryBreakdown(UsageStatsResponse data, ThemeData theme) {
+  // Filter out lock_in app from all categories
+  final filteredApps = data.apps.where((app) => 
+    !app.packageName.contains('lock_in') && 
+    app.packageName != 'com.example.lock_in'
+  ).toList();
+  
+  // Calculate category times excluding lock_in
+  final distractingTime = filteredApps
+      .where((app) => app.category == AppCategory.distracting)
+      .fold(0, (sum, app) => sum + app.totalUsageMinutes);
+  
+  final productiveTime = filteredApps
+      .where((app) => app.category == AppCategory.productive)
+      .fold(0, (sum, app) => sum + app.totalUsageMinutes);
+  
+  final othersTime = filteredApps
+      .where((app) => app.category == AppCategory.others)
+      .fold(0, (sum, app) => sum + app.totalUsageMinutes);
+  
+  return Row(
+    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+    children: [
+      _buildCategoryItem(
+        _formatTime(distractingTime),
+        'Distracting',
+        const Color(0xFFFF8C00), // Orange
+        theme,
+      ),
+      _buildCategoryItem(
+        _formatTime(productiveTime),
+        'Productive',
+        const Color(0xFF7ED957), // Green
+        theme,
+      ),
+      _buildCategoryItem(
+        _formatTime(othersTime),
+        'Others',
+        const Color(0xFF8A8A8A), // Grey
+        theme,
+      ),
+    ],
+  );
+}
+
+// Add this helper method to format time
+String _formatTime(int minutes) {
+  final hours = minutes / 60;
+  if (hours >= 1) {
+    final h = hours.floor();
+    final m = (minutes % 60);
+    if (m == 0) return '${h}h';
+    return '${h}h ${m}m';
   }
+  return '${minutes}m';
+}
 
   Widget _buildCategoryItem(String time, String label, Color color, ThemeData theme) {
     return Column(
@@ -481,20 +515,26 @@ Widget _buildFilterChips(ThemeData theme) {
     );
   }
 
-  List<AppUsageStats> _getFilteredApps(UsageStatsResponse data) {
-    if (_selectedFilter == null) {
-      return data.apps;
-    }
-    
-    switch (_selectedFilter!) {
-      case AppCategory.distracting:
-        return data.distractingApps;
-      case AppCategory.productive:
-        return data.productiveApps;
-      case AppCategory.others:
-        return data.otherApps;
-    }
+List<AppUsageStats> _getFilteredApps(UsageStatsResponse data) {
+  // First filter out the lock_in app itself
+  var apps = data.apps.where((app) => 
+    !app.packageName.contains('lock_in') && 
+    app.packageName != 'com.example.lock_in'
+  ).toList();
+  
+  if (_selectedFilter == null) {
+    return apps;
   }
+  
+  switch (_selectedFilter!) {
+    case AppCategory.distracting:
+      return apps.where((app) => app.category == AppCategory.distracting).toList();
+    case AppCategory.productive:
+      return apps.where((app) => app.category == AppCategory.productive).toList();
+    case AppCategory.others:
+      return apps.where((app) => app.category == AppCategory.others).toList();
+  }
+}
 
   String _formatDate(DateTime date) {
     const months = [

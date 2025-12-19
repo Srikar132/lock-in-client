@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lock_in/data/models/installed_app_model.dart';
-import 'package:lock_in/models/usage_stats_models.dart';
 import 'package:lock_in/presentation/providers/focus_session_provider.dart';
 
 /// Service class to handle all native Android permissions required by the app.
@@ -269,7 +268,7 @@ class NativeService {
       final result = await _platform.invokeMethod('getInstalledApps');
 
       if (result == null) {
-        debugPrint('❌✅getInstalledApps returned null');
+        debugPrint('❌ getInstalledApps returned null');
         return [];
       }
 

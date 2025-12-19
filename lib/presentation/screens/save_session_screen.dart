@@ -13,7 +13,10 @@ class SaveSessionScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<SaveSessionScreen> createState() => _SaveSessionScreenState();
+  ConsumerState<SaveSessionScreen> createState() {
+    debugPrint('🎯 SaveSessionScreen: Creating state with sessionData: $sessionData');
+    return _SaveSessionScreenState();
+  }
 }
 
 class _SaveSessionScreenState extends ConsumerState<SaveSessionScreen> {
@@ -22,7 +25,14 @@ class _SaveSessionScreenState extends ConsumerState<SaveSessionScreen> {
   bool _isSaving = false;
 
   @override
+  void initState() {
+    super.initState();
+    debugPrint('🎯 SaveSessionScreen: initState called with sessionData: ${widget.sessionData}');
+  }
+
+  @override
   void dispose() {
+    debugPrint('🎯 SaveSessionScreen: dispose called');
     _notesController.dispose();
     super.dispose();
   }

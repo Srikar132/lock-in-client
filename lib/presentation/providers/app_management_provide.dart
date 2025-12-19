@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lock_in/data/models/installed_app_model.dart';
 import 'package:lock_in/services/native_service.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:lock_in/presentation/providers/blocked_content_provider.dart';
 
 
 final installedAppsProvider = FutureProvider.autoDispose<List<InstalledApp>>((ref) async {
@@ -49,5 +50,35 @@ final groupedAppsProvider = Provider<Map<String, List<InstalledApp>>>((ref) {
       return grouped;
     },
     orElse: () => {},
+  );
+});
+
+// 5. Allowed Apps Provider (Non-blocked apps)
+final allowedAppsProvider = Provider.family<AsyncValue<List<InstalledApp>>, String>((ref, userId) {
+  final appsAsync = ref.watch(installedAppsProvider);
+  final blockedAppsAsync = ref.watch(permanentlyBlockedAppsProvider(userId));
+
+  return appsAsync.when(
+    data: (apps) {
+      return blockedAppsAsync.when(
+        data: (blockedPackages) {
+          // Filter out blocked apps and system apps
+          final allowed = apps.where((app) {
+            final isNotBlocked = !blockedPackages.contains(app.packageName);
+            final isNotSystem = !app.isSystemApp;
+            return isNotBlocked && isNotSystem;
+          }).toList();
+          
+          // Sort alphabetically
+          allowed.sort((a, b) => a.appName.compareTo(b.appName));
+          
+          return AsyncValue.data(allowed);
+        },
+        loading: () => const AsyncValue.loading(),
+        error: (err, stack) => AsyncValue.error(err, stack),
+      );
+    },
+    loading: () => const AsyncValue.loading(),
+    error: (err, stack) => AsyncValue.error(err, stack),
   );
 });

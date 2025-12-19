@@ -449,7 +449,7 @@ class _FocusTimeBottomSheetState extends ConsumerState<FocusTimeBottomSheet> {
         children: [
           _buildModeButton('Timer', _selectedMode == 'Timer'),
           _buildModeButton('Stopwatch', _selectedMode == 'Stopwatch'),
-          _buildModeButton('Pomodoro', _selectedMode == 'Pomodoro'),
+          // _buildModeButton('Pomodoro', _selectedMode == 'Pomodoro'),
         ],
       ),
     );
