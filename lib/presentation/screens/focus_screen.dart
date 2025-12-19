@@ -7,11 +7,13 @@ import 'package:lock_in/presentation/providers/auth_provider.dart';
 import 'package:lock_in/presentation/providers/focus_session_provider.dart';
 import 'package:lock_in/presentation/providers/blocked_content_provider.dart';
 import 'package:lock_in/presentation/providers/settings_provider.dart';
+import 'package:lock_in/presentation/providers/background_image_provider.dart';
 import 'package:lock_in/presentation/screens/active_focus_screen.dart';
 import 'package:lock_in/presentation/screens/profile_screen.dart';
 import 'package:lock_in/presentation/screens/usage_stats_screen.dart';
 import 'package:lock_in/widgets/focus_timer_widget.dart';
 import 'package:lock_in/widgets/lumo_mascot_widget.dart';
+import 'package:lock_in/widgets/background_image_selector.dart';
 import 'dart:math';
 
 class FocusScreen extends ConsumerStatefulWidget {
@@ -60,13 +62,21 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
     );
   }
 
+  // Show background image selector modal
+  void _showBackgroundSelector() {
+    BottomSheetManager.show(
+      context: context,
+      height: MediaQuery.of(context).size.height * 0.8,
+      child: const BackgroundImageSelector(),
+    );
+  }
+
   // Start focus session with current settings
   Future<void> _startFocusSession() async {
     try {
       final user = ref.read(currentUserProvider).value;
       if (user == null) return;
 
-      // Get current settings from the user's preferences
       final settingsAsync = ref.read(userSettingsProvider(user.uid));
       final settings = settingsAsync.value;
       
@@ -140,9 +150,24 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
 
         return Stack(
           children: [
-            // 1. Background Image Layer
+            // 1. Background Image Layer - Now using dynamic background
             Positioned.fill(
-              child: Image.asset(kHomeBackgroundImage, fit: BoxFit.cover),
+              child: Consumer(
+                builder: (context, ref, child) {
+                  final currentBackground = ref.watch(currentBackgroundImageProvider);
+                  return Image.asset(
+                    currentBackground,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      // Fallback to default if image fails to load
+                      return Image.asset(
+                        kHomeBackgroundImage,
+                        fit: BoxFit.cover,
+                      );
+                    },
+                  );
+                },
+              ),
             ),
 
             // 2. Transparent InkWell & Column Layer
@@ -151,7 +176,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: () {},
-                  onLongPress: () {},
+                  onLongPress: _showBackgroundSelector,
                   splashColor: Colors.white.withAlpha(30),
                   highlightColor: Colors.white.withAlpha(10),
                   child: SafeArea(
@@ -330,10 +355,16 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
         const SizedBox(width: 6),
 
         // Focus Time Card
-        _buildStatCard(
-          label: 'Focus',
-          value: '0m',
-          backgroundColor: Colors.white.withOpacity(0.15),
+        GestureDetector(
+          onTap: () {
+            // Handle tap on focus time card
+           
+          },
+          child: _buildStatCard(
+            label: 'Focus',
+            value: '0m',
+            backgroundColor: Colors.white.withOpacity(0.15),
+          ),
         ),
 
         const Spacer(),

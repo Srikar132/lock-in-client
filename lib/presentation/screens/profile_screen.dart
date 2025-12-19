@@ -224,7 +224,7 @@ class ProfileScreen extends ConsumerWidget {
                 Row(
                   children: [
                     const Text(
-                      'Regain',
+                      'LockIn',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
