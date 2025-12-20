@@ -15,6 +15,9 @@ import com.example.lock_in.services.overlay.SimpleBlockOverlay
 import com.example.lock_in.managers.WebsiteBlockManager
 import com.example.lock_in.managers.ShortFormBlockManager
 import com.example.lock_in.services.limits.AppLimitManager
+import com.example.lock_in.services.limits.AppLimitTracker
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
 import android.os.Handler
 import android.os.Looper
 import android.app.Notification
@@ -40,6 +43,11 @@ class LockInAccessibilityService : AccessibilityService() {
         var isServiceRunning = false
             private set
         
+        // Singleton instance to access from MainActivity
+        private var instance: LockInAccessibilityService? = null
+        
+        fun getInstance(): LockInAccessibilityService? = instance
+        
         // Foreground service constants
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "lockin_accessibility_channel"
@@ -64,10 +72,41 @@ class LockInAccessibilityService : AccessibilityService() {
     private lateinit var websiteBlockManager: WebsiteBlockManager
     private lateinit var shortFormBlockManager: ShortFormBlockManager
     private lateinit var appLimitManager: AppLimitManager
+    private lateinit var appLimitTracker: AppLimitTracker
     private lateinit var overlayLauncher: OverlayLauncher
     private var lastCheckedUrl: String? = null
     private var lastBlockTime = 0L // Add cooldown tracking
     private val BLOCK_COOLDOWN_MS = 5000L // 5 second cooldown
+    
+    // MethodChannel for communicating limit reached events to Flutter
+    private var limitEventsChannel: MethodChannel? = null
+    
+    // Periodic limit checking
+    private val limitCheckHandler = Handler(Looper.getMainLooper())
+    private var limitCheckRunnable: Runnable? = null
+    private val LIMIT_CHECK_INTERVAL_MS = 5000L // Check every 5 seconds
+    private var lastUserApp: String? = null // Track last non-system app
+    
+    // System packages to ignore (don't treat as app switches)
+    private val SYSTEM_PACKAGES = setOf(
+        "android",
+        "com.android.systemui",
+        "com.google.android.gms",
+        "com.google.android.gsf",
+        "com.android.vending",
+        "com.google.android.packageinstaller",
+        "com.android.permissioncontroller",
+        "com.google.android.inputmethod.latin", // Gboard
+        "com.samsung.android.app.aodservice",
+        "com.samsung.android.bixby.agent",
+        "com.android.launcher3",
+        "com.google.android.apps.nexuslauncher",
+        "com.vivo.upslide", // Vivo notification panel
+        "com.bbk.launcher2", // Vivo launcher
+        "com.oppo.launcher", // Oppo launcher
+        "com.huawei.android.launcher", // Huawei launcher
+        "com.miui.home" // Xiaomi launcher
+    )
     
     // YouTube Shorts detection with delayed checks
     private val shortsDetectionHandler = Handler(Looper.getMainLooper())
@@ -124,12 +163,14 @@ class LockInAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         isServiceRunning = true
+        instance = this
         Log.d(TAG, "Accessibility Service Connected")
         
         // Initialize managers
         websiteBlockManager = WebsiteBlockManager.getInstance(applicationContext)
         shortFormBlockManager = ShortFormBlockManager.getInstance(applicationContext)
         appLimitManager = AppLimitManager(applicationContext)
+        appLimitTracker = AppLimitTracker(applicationContext)
         overlayLauncher = OverlayLauncher.getInstance(applicationContext)
         
         // Start as foreground service for persistence
@@ -166,18 +207,41 @@ class LockInAccessibilityService : AccessibilityService() {
             
             // Update current foreground app for usage tracking
             if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                // Ignore system packages and transient windows
+                if (isSystemPackage(packageName)) {
+                    Log.d(TAG, "Ignoring system package: $packageName (keeping tracking for ${lastUserApp ?: "none"})")
+                    return
+                }
+                
+                // Check if new package has limits - if not, it's likely a system overlay
+                val hasLimit = com.example.lock_in.services.limits.LockInNativeLimitsHolder.hasLimit(packageName)
+                
+                // If switching to an app without limits while tracking another app, ignore it
+                if (!hasLimit && lastUserApp != null) {
+                    val lastAppHasLimit = com.example.lock_in.services.limits.LockInNativeLimitsHolder.hasLimit(lastUserApp!!)
+                    if (lastAppHasLimit) {
+                        Log.d(TAG, "Ignoring transient window: $packageName (keeping tracking for $lastUserApp)")
+                        // Don't call onAppSwitched, keep tracking the last user app
+                        return
+                    }
+                }
+                
+                // Only update if it's a different user app
+                if (packageName != lastUserApp) {
+                    Log.d(TAG, "User app switched: ${lastUserApp ?: "none"} → $packageName")
+                    lastUserApp = packageName
+                }
+                
                 currentForegroundApp = packageName
-            }
-            
-            // Handle browser URL blocking
-            if (BROWSER_PACKAGES.contains(packageName)) {
-                handleBrowserEvent(event)
-                return
-            }
-            
-            // Handle app limit checking
-            if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-                checkAppLimit(packageName)
+                // Handle app limit checking with new tracker
+                val limitExceeded = appLimitTracker.onAppSwitched(packageName)
+                if (limitExceeded) {
+                    enforceAppLimit(packageName)
+                    return // Don't process other events if limit exceeded
+                }
+                
+                // Start periodic checking if this app has a limit
+                startPeriodicLimitCheck(packageName)
             }
             
             // Debug logging for YouTube
@@ -880,34 +944,136 @@ class LockInAccessibilityService : AccessibilityService() {
                 (trimmedText.contains(".") && !trimmedText.contains(" ") && trimmedText.length > 3))
     }
 
-    private fun checkAppLimit(packageName: String) {
-        try {
-            val appLimit = appLimitManager.getAppLimit(packageName)
-            if (appLimit != null && appLimit.isActive) {
-                // App limit checking is handled by AppLimitManager's background job
-                // This is just for logging/awareness
-                Log.d(TAG, "App has active limit: $packageName (${appLimit.dailyLimitMinutes} min/day)")
+    /**
+     * Check if a package should be ignored (system/background services)
+     */
+    private fun isSystemPackage(packageName: String): Boolean {
+        return SYSTEM_PACKAGES.contains(packageName) ||
+               packageName.startsWith("com.android.") ||
+               packageName.startsWith("com.google.android.") ||
+               packageName.startsWith("com.samsung.android.") ||
+               packageName.startsWith("com.vivo.") ||
+               packageName.startsWith("com.oppo.") ||
+               packageName.startsWith("com.bbk.") ||
+               packageName.startsWith("com.huawei.") ||
+               packageName.startsWith("com.xiaomi.") ||
+               packageName.startsWith("com.miui.")
+    }
+    
+    /**
+     * Start periodic checking for app limits while app is in use
+     */
+    private fun startPeriodicLimitCheck(packageName: String) {
+        // Stop any existing periodic check
+        stopPeriodicLimitCheck()
+        
+        // Only start periodic check if app has a limit
+        if (!com.example.lock_in.services.limits.LockInNativeLimitsHolder.hasLimit(packageName)) {
+            Log.d(TAG, "No limit for $packageName, skipping periodic check")
+            return
+        }
+        
+        Log.d(TAG, "⏰ Starting periodic limit check for $packageName every ${LIMIT_CHECK_INTERVAL_MS/1000}s")
+        
+        limitCheckRunnable = object : Runnable {
+            override fun run() {
+                // Check if still on the same user app (ignore system overlays)
+                if (lastUserApp == packageName) {
+                    Log.d(TAG, "⏱️ Periodic check: Checking limit for $packageName")
+                    val limitExceeded = appLimitTracker.checkLimit(packageName)
+                    if (limitExceeded) {
+                        Log.w(TAG, "⏱️ Periodic check: LIMIT EXCEEDED during active use!")
+                        enforceAppLimit(packageName)
+                        stopPeriodicLimitCheck() // Stop checking after enforcement
+                    } else {
+                        // Schedule next check
+                        limitCheckHandler.postDelayed(this, LIMIT_CHECK_INTERVAL_MS)
+                    }
+                } else {
+                    Log.d(TAG, "⏱️ User app switched away from $packageName, stopping periodic check")
+                    stopPeriodicLimitCheck()
+                }
             }
+        }
+        
+        // Start the periodic checking
+        limitCheckHandler.postDelayed(limitCheckRunnable!!, LIMIT_CHECK_INTERVAL_MS)
+    }
+    
+    /**
+     * Stop periodic limit checking
+     */
+    private fun stopPeriodicLimitCheck() {
+        limitCheckRunnable?.let {
+            limitCheckHandler.removeCallbacks(it)
+            limitCheckRunnable = null
+            Log.d(TAG, "⏰ Stopped periodic limit check")
+        }
+    }
+    
+    /**
+     * Enforce app limit by navigating back and notifying Flutter
+     */
+    private fun enforceAppLimit(packageName: String) {
+        try {
+            Log.w(TAG, "⚠️⚠️⚠️ ENFORCING APP LIMIT FOR $packageName ⚠️⚠️⚠️")
+            
+            // Stop periodic checking
+            stopPeriodicLimitCheck()
+            
+            // Strategy 1: Multiple BACK actions
+            Log.d(TAG, "Strategy 1: Attempting BACK actions...")
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            Thread.sleep(100)
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            Thread.sleep(100)
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            
+            // Strategy 2: HOME action (more reliable)
+            Handler(Looper.getMainLooper()).postDelayed({
+                Log.d(TAG, "Strategy 2: Performing HOME action")
+                val homeSuccess = performGlobalAction(GLOBAL_ACTION_HOME)
+                Log.d(TAG, "HOME action result: $homeSuccess")
+                
+                // Strategy 3: Show blocking overlay
+                Handler(Looper.getMainLooper()).postDelayed({
+                    Log.d(TAG, "Strategy 3: Showing app limit overlay")
+                    showAppLimitExceededOverlay(packageName)
+                }, 300)
+            }, 500)
+            
+            // Notify Flutter
+            Log.d(TAG, "Sending limit reached event to Flutter for $packageName")
+            sendLimitReachedToFlutter(packageName)
+            
         } catch (e: Exception) {
-            Log.e(TAG, "Error checking app limit for $packageName", e)
+            Log.e(TAG, "❌ Error enforcing app limit for $packageName", e)
+        }
+    }
+    
+    /**
+     * Send limit reached event to Flutter via MethodChannel
+     */
+    private fun sendLimitReachedToFlutter(packageName: String) {
+        try {
+            if (limitEventsChannel == null) {
+                Log.e(TAG, "❌ limitEventsChannel is NULL - cannot send event!")
+                return
+            }
+            
+            Log.d(TAG, "Invoking limitReached on channel for $packageName")
+            limitEventsChannel?.invokeMethod("limitReached", mapOf(
+                "package" to packageName
+            ))
+            Log.d(TAG, "✅ Successfully sent limit reached event to Flutter")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error sending limit reached event to Flutter", e)
         }
     }
 
     private fun checkAndUpdateUsage() {
-        try {
-            val currentTime = System.currentTimeMillis()
-            val currentApp = currentForegroundApp
-            
-            if (currentApp != null && 
-                currentTime - lastUsageCheckTime >= MIN_USAGE_INCREMENT_SECONDS * 1000) {
-                
-                // We don't need to manually add usage time here as the AppLimitManager 
-                // already gets real usage from UsageStatsManager
-                Log.d(TAG, "Usage tracking updated automatically via UsageStatsManager for $currentApp")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error updating usage", e)
-        }
+        // This is now handled by AppLimitTracker automatically
+        // Keep method for backward compatibility but it's no longer needed
     }
 
     private fun detectYouTubeShortsEnhanced(): Boolean {
@@ -1858,20 +2024,28 @@ class LockInAccessibilityService : AccessibilityService() {
     private fun showAppLimitExceededOverlay(packageName: String) {
         try {
             val appName = getAppName(packageName)
-            val appLimit = appLimitManager.getAppLimit(packageName)
-            if (appLimit == null) {
+            val limitMs = com.example.lock_in.services.limits.LockInNativeLimitsHolder.getLimitMs(packageName)
+            
+            if (limitMs == null || limitMs <= 0) {
                 Log.w(TAG, "No limit found for $packageName")
                 return
             }
             
-            val intent = Intent(this, BlockOverlayActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                putExtra("PACKAGE_NAME", packageName)
-                putExtra("APP_NAME", appName)
-                putExtra("MESSAGE", "⏰ Daily limit reached\n\n$appName\n\nYou've reached your ${appLimit.dailyLimitMinutes} minute daily limit.\n\nTake a break and come back tomorrow!")
-                putExtra("IS_STRICT_MODE", true)
-            }
-            startActivity(intent)
+            val limitMinutes = (limitMs / 60_000).toInt()
+            
+            Log.d(TAG, "📱 Showing app limit overlay for $appName ($limitMinutes min limit)")
+            
+            // Show simple native overlay with 5 second countdown
+            SimpleBlockOverlay.show(
+                context = applicationContext,
+                platform = appName,
+                contentType = "Time limit exceeded",
+                message = "⏰ Daily Limit: $limitMinutes minutes",
+                durationSeconds = 5,
+                onDismiss = {
+                    Log.d(TAG, "✅ App limit overlay dismissed")
+                }
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Error showing app limit overlay", e)
         }
@@ -1890,11 +2064,35 @@ class LockInAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {
         Log.d(TAG, "Accessibility Service Interrupted")
     }
+    
+    /**
+     * Set the MethodChannel for sending limit reached events to Flutter
+     * Called from MainActivity after Flutter engine is ready
+     */
+    fun setLimitEventsChannel(channel: MethodChannel) {
+        this.limitEventsChannel = channel
+        Log.d(TAG, "Limit events channel set")
+    }
+    
+    /**
+     * Get the AppLimitTracker instance for usage queries from MainActivity
+     */
+    fun getAppLimitTracker(): AppLimitTracker {
+        return appLimitTracker
+    }
 
     override fun onUnbind(intent: Intent?): Boolean {
         isServiceRunning = false
+        instance = null
         lastCheckedUrl = null
         currentForegroundApp = null
+        lastUserApp = null
+        
+        // Cleanup tracker
+        appLimitTracker.cleanup()
+        
+        // Stop periodic limit checking
+        stopPeriodicLimitCheck()
         
         // Stop usage tracking
         usageCheckHandler.removeCallbacks(usageCheckRunnable)

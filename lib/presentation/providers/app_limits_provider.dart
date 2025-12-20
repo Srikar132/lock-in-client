@@ -15,47 +15,52 @@ final appLimitRepositoryProvider = Provider<AppLimitRepository>((ref) {
 // ============================================================================
 
 // Stream all app limits for a user
-final appLimitsProvider = StreamProvider.family<List<AppLimitModel>, String>(
-  (ref, userId) {
-    return ref.watch(appLimitRepositoryProvider).getAppLimitsStream(userId);
-  },
-);
+final appLimitsProvider = StreamProvider.family<List<AppLimitModel>, String>((
+  ref,
+  userId,
+) {
+  return ref.watch(appLimitRepositoryProvider).getAppLimitsStream(userId);
+});
 
 // Stream active app limits only
-final activeAppLimitsProvider = StreamProvider.family<List<AppLimitModel>, String>(
-  (ref, userId) {
-    return ref.watch(appLimitRepositoryProvider).getActiveAppLimitsStream(userId);
-  },
-);
+final activeAppLimitsProvider =
+    StreamProvider.family<List<AppLimitModel>, String>((ref, userId) {
+      return ref
+          .watch(appLimitRepositoryProvider)
+          .getActiveAppLimitsStream(userId);
+    });
 
 // Stream specific app limit
-final specificAppLimitProvider = StreamProvider.family<AppLimitModel?, ({String userId, String packageName})>(
-  (ref, params) {
-    return ref
-        .watch(appLimitRepositoryProvider)
-        .getAppLimitStream(params.userId, params.packageName);
-  },
-);
+final specificAppLimitProvider =
+    StreamProvider.family<
+      AppLimitModel?,
+      ({String userId, String packageName})
+    >((ref, params) {
+      return ref
+          .watch(appLimitRepositoryProvider)
+          .getAppLimitStream(params.userId, params.packageName);
+    });
 
 // ============================================================================
 // FUTURE PROVIDERS
 // ============================================================================
 
 // Get all app limits (one-time fetch)
-final fetchAppLimitsProvider = FutureProvider.family<List<AppLimitModel>, String>(
-  (ref, userId) async {
-    return ref.watch(appLimitRepositoryProvider).getAppLimits(userId);
-  },
-);
+final fetchAppLimitsProvider =
+    FutureProvider.family<List<AppLimitModel>, String>((ref, userId) async {
+      return ref.watch(appLimitRepositoryProvider).getAppLimits(userId);
+    });
 
 // Get specific app limit (one-time fetch)
-final fetchSpecificAppLimitProvider = FutureProvider.family<AppLimitModel?, ({String userId, String packageName})>(
-  (ref, params) async {
-    return ref
-        .watch(appLimitRepositoryProvider)
-        .getAppLimit(params.userId, params.packageName);
-  },
-);
+final fetchSpecificAppLimitProvider =
+    FutureProvider.family<
+      AppLimitModel?,
+      ({String userId, String packageName})
+    >((ref, params) async {
+      return ref
+          .watch(appLimitRepositoryProvider)
+          .getAppLimit(params.userId, params.packageName);
+    });
 
 // ============================================================================
 // STATE NOTIFIER FOR APP LIMIT OPERATIONS
@@ -70,6 +75,11 @@ class AppLimitNotifier extends Notifier<AsyncValue<void>> {
     return const AsyncValue.data(null);
   }
 
+  // Add app limit (alias for setAppLimit for clarity)
+  Future<void> addAppLimit(String userId, AppLimitModel appLimit) async {
+    await setAppLimit(userId, appLimit);
+  }
+
   // Set or update app limit
   Future<void> setAppLimit(String userId, AppLimitModel appLimit) async {
     state = const AsyncValue.loading();
@@ -79,8 +89,13 @@ class AppLimitNotifier extends Notifier<AsyncValue<void>> {
     });
   }
 
+  // Update entire app limit model
+  Future<void> updateAppLimit(String userId, AppLimitModel appLimit) async {
+    await setAppLimit(userId, appLimit);
+  }
+
   // Update app limit fields
-  Future<void> updateAppLimit(
+  Future<void> updateAppLimitFields(
     String userId,
     String packageName,
     Map<String, dynamic> updates,
@@ -90,6 +105,11 @@ class AppLimitNotifier extends Notifier<AsyncValue<void>> {
       await _repository.updateAppLimit(userId, packageName, updates);
       debugPrint('✅ App limit updated for $packageName');
     });
+  }
+
+  // Remove app limit (alias for deleteAppLimit)
+  Future<void> removeAppLimit(String userId, String packageName) async {
+    await deleteAppLimit(userId, packageName);
   }
 
   // Delete app limit
@@ -176,16 +196,20 @@ class AppLimitNotifier extends Notifier<AsyncValue<void>> {
 }
 
 // Notifier Provider
-final appLimitNotifierProvider = NotifierProvider<AppLimitNotifier, AsyncValue<void>>(() {
-  return AppLimitNotifier();
-});
+final appLimitNotifierProvider =
+    NotifierProvider<AppLimitNotifier, AsyncValue<void>>(() {
+      return AppLimitNotifier();
+    });
 
 // ============================================================================
 // DERIVED PROVIDERS (Computed values)
 // ============================================================================
 
 // Get count of active app limits
-final activeAppLimitsCountProvider = Provider.family<int, String>((ref, userId) {
+final activeAppLimitsCountProvider = Provider.family<int, String>((
+  ref,
+  userId,
+) {
   final appLimitsAsync = ref.watch(activeAppLimitsProvider(userId));
   return appLimitsAsync.maybeWhen(
     data: (limits) => limits.length,
@@ -194,16 +218,20 @@ final activeAppLimitsCountProvider = Provider.family<int, String>((ref, userId) 
 });
 
 // Check if a specific app has a limit
-final hasAppLimitProvider = Provider.family<bool, ({String userId, String packageName})>((ref, params) {
-  final appLimitAsync = ref.watch(specificAppLimitProvider(params));
-  return appLimitAsync.maybeWhen(
-    data: (limit) => limit != null,
-    orElse: () => false,
-  );
-});
+final hasAppLimitProvider =
+    Provider.family<bool, ({String userId, String packageName})>((ref, params) {
+      final appLimitAsync = ref.watch(specificAppLimitProvider(params));
+      return appLimitAsync.maybeWhen(
+        data: (limit) => limit != null,
+        orElse: () => false,
+      );
+    });
 
 // Get all package names with limits
-final appLimitPackageNamesProvider = Provider.family<List<String>, String>((ref, userId) {
+final appLimitPackageNamesProvider = Provider.family<List<String>, String>((
+  ref,
+  userId,
+) {
   final appLimitsAsync = ref.watch(appLimitsProvider(userId));
   return appLimitsAsync.maybeWhen(
     data: (limits) => limits.map((l) => l.packageName).toList(),
