@@ -42,13 +42,10 @@ class _UsageStatsScreenState extends ConsumerState<UsageStatsScreen>
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Usage Stats'),
+        title: const Text('Usage Insights'),
         backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: theme.iconTheme.color),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+       
         actions: [
           IconButton(
             icon: Icon(Icons.help_outline, color: theme.iconTheme.color),

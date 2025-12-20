@@ -45,5 +45,14 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Voice Assistant Permissions -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Lock In needs microphone access to enable the Lumo voice assistant for hands-free study help.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Lock In uses speech recognition to understand your voice commands with the Lumo assistant.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 </dict>
 </plist>

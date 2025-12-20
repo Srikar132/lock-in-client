@@ -311,11 +311,9 @@ class LockInAccessibilityService : AccessibilityService() {
                 }
             }
             
-            // Handle browser-based short-form content (YouTube Shorts in Chrome/WebView)
+            // Handle browser events for both URL blocking and short-form content
             if (BROWSER_PACKAGES.contains(packageName)) {
-                shortsDetectionHandler.postDelayed({
-                    checkBrowserForShortsContent(event)
-                }, URL_CHECK_DELAY_MS)
+                handleBrowserEvent(event)
             }
             
         } catch (e: Exception) {

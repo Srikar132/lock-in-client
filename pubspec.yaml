@@ -31,6 +31,13 @@ dependencies:
   share_plus: ^12.0.1
   crypto: ^3.0.3
   installed_apps: ^1.4.0
+  
+  # Voice Assistant Dependencies
+  record: ^5.2.1
+  web_socket_channel: ^2.4.0
+  http: ^1.2.0
+  path_provider: ^2.1.2
+  uuid: ^4.3.3
 
 dev_dependencies:
   flutter_test:
@@ -38,6 +45,9 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   hive_generator: ^2.0.1
   build_runner: ^2.4.13
+
+dependency_overrides:
+  record_linux: ^1.0.0
 
 flutter:
   uses-material-design: true
