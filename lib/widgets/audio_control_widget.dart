@@ -12,10 +12,10 @@ class AudioControlWidget extends ConsumerStatefulWidget {
 }
 
 class _AudioControlWidgetState extends ConsumerState<AudioControlWidget> {
-  double _currentSpeed = 1.0;
-  double _musicVolume = 0.7;
-  double _soundVolume = 1.0;
-  double _backgroundVolume = 0.3;
+  final double _currentSpeed = 1.0;
+  final double _musicVolume = 0.7;
+  final double _soundVolume = 1.0;
+  final double _backgroundVolume = 0.3;
   
   final List<double> _speedValues = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 

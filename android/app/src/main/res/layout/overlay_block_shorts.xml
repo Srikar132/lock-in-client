@@ -54,21 +54,19 @@
         android:gravity="center"
         android:alpha="0.8" />
 
-    <!-- Bottom content container with dark background -->
+    <!-- Bottom content container - FULL WIDTH, 40% HEIGHT, AT BOTTOM -->
     <LinearLayout
+        android:id="@+id/bottomCard"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|center_horizontal"
+        android:layout_height="match_parent"
+        android:layout_gravity="bottom"
         android:orientation="vertical"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="80dp"
         android:background="#DD000000"
         android:paddingStart="24dp"
         android:paddingEnd="24dp"
         android:paddingTop="32dp"
         android:paddingBottom="32dp"
-        android:gravity="center_horizontal">
+        android:gravity="center">
 
         <!-- Block Title -->
         <TextView

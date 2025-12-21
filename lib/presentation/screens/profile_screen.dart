@@ -6,6 +6,7 @@ import 'package:lock_in/presentation/providers/parental_control_provider.dart';
 import 'package:lock_in/presentation/providers/profile_provider.dart';
 import 'package:lock_in/models/parental_control.dart';
 import 'package:lock_in/widgets/parental_control_dialogs.dart';
+import 'package:lock_in/presentation/screens/splash_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -84,7 +85,12 @@ class ProfileScreen extends ConsumerWidget {
                         // Weekly Reports Section
                         _buildWeeklyReportsSection(context),
 
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 24),
+
+                        // Sign Out Button
+                        _buildSignOutButton(context, ref),
+
+                        const SizedBox(height: 24),
                       ],
                     ),
                   ),
@@ -385,7 +391,7 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 trailing: Switch(
                   value: parentalControl.isEnabled,
-                  activeColor: const Color(0xFF82D65D),
+                  activeThumbColor: const Color(0xFF82D65D),
                   onChanged: (value) async {
                     if (value) {
                       // Enabling parental mode
@@ -1006,6 +1012,121 @@ class ProfileScreen extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSignOutButton(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authNotifierProvider);
+    final isSigningOut = authState.isSigningOut;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 8,
+        ),
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.red.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(
+            Icons.logout,
+            color: Colors.red,
+            size: 24,
+          ),
+        ),
+        title: const Text(
+          'Sign Out',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
+        subtitle: const Text(
+          'Sign out of your account',
+          style: TextStyle(fontSize: 13, color: Colors.white54),
+        ),
+        trailing: isSigningOut
+            ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                ),
+              )
+            : const Icon(
+                Icons.chevron_right,
+                color: Colors.white54,
+              ),
+        onTap: isSigningOut
+            ? null
+            : () async {
+                // Show confirmation dialog
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    backgroundColor: const Color(0xFF1E1E1E),
+                    title: const Text(
+                      'Sign Out',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    content: const Text(
+                      'Are you sure you want to sign out?',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(color: Colors.white54),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: const Text(
+                          'Sign Out',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+
+                // If user confirmed, sign out
+                if (confirmed == true && context.mounted) {
+                  await ref.read(authNotifierProvider.notifier).signOut();
+
+                  // Check for errors
+                  final error = ref.read(authErrorProvider);
+                  if (error != null && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(error),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  } else if (context.mounted) {
+                    // Successfully signed out - navigate to splash screen
+                    // This will clear the navigation stack and show entry screen
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (context) => const SplashScreen(),
+                      ),
+                      (route) => false,
+                    );
+                  }
+                }
+              },
+      ),
     );
   }
 }
