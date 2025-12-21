@@ -26,11 +26,13 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-    
-      body: _screens[_selectedIndex],
+      // Using IndexedStack to cache all screens and preserve their state
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _screens,
+      ),
 
       // USING MATERIAL 3 NAVIGATION BAR
-      // This matches the 'navigationBarTheme' in your AppTheme file
       bottomNavigationBar: NavigationBar(
         backgroundColor: Colors.transparent,
         indicatorColor: Colors.transparent, // 🔥 removes shine
@@ -64,7 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
           NavigationDestination(
             icon: Icon(Icons.insights_outlined),
             selectedIcon: Icon(Icons.insights),
-            label: 'Insights',
+            label: 'Usage',
           ),
         ],
       ),

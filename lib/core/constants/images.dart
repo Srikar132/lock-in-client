@@ -10,7 +10,7 @@ String get kGoogleLogoImage => 'assets/images/google_icon.png';
 // HOME
 String get kHomeBackgroundImage => 'assets/images/home-bg1.png';
 
-String get KLumoIcon => 'assets/images/mascot.png';
+String get KLumoIcon => 'assets/images/mascot-blue.png';
 
 // AVAILABLE BACKGROUND IMAGES FROM ASSETS
 String get kBackgroundImage1 => 'assets/images/entry_bg.jpg';

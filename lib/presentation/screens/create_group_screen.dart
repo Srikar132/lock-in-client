@@ -17,7 +17,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
-  
+
   bool _isPublic = false;
   bool _allowMemberInvites = true;
   bool _showLeaderboard = true;
@@ -32,26 +32,28 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   }
 
   void _showShareDialog(BuildContext context, String groupId, String groupName) {
+    final theme = Theme.of(context);
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2D2D2D),
+        backgroundColor: theme.colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFF82D65D).withOpacity(0.2),
+                color: theme.colorScheme.primary.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.share, color: Color(0xFF82D65D), size: 20),
+              child: Icon(Icons.share, color: theme.colorScheme.primary, size: 20),
             ),
             const SizedBox(width: 12),
-            const Expanded(
+            Expanded(
               child: Text(
                 'Invite Friends!',
-                style: TextStyle(color: Colors.white, fontSize: 18),
+                style: theme.textTheme.titleLarge,
               ),
             ),
           ],
@@ -62,7 +64,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
           children: [
             Text(
               'Your group "$groupName" is ready! Share it with friends to get them started.',
-              style: const TextStyle(color: Colors.white70, fontSize: 14),
+              style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: 20),
             Container(
@@ -74,12 +76,12 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.link, color: Color(0xFF82D65D), size: 16),
+                  Icon(Icons.link, color: theme.colorScheme.primary, size: 16),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Group ID: $groupId',
-                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                      style: theme.textTheme.bodySmall,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -91,7 +93,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Later', style: TextStyle(color: Colors.white54)),
+            child: Text('Later', style: theme.textTheme.bodyMedium),
           ),
           ElevatedButton.icon(
             onPressed: () {
@@ -115,14 +117,14 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   }
 
   void _shareToWhatsApp(String groupId, String groupName) {
-    final message = 
+    final message =
         '🎯 Join my focus group: "$groupName"!\n\n'
         '📚 Let\'s stay focused and productive together.\n'
         '🏆 Track progress on the leaderboard.\n\n'
         '👉 Open Lock In app and search for this group:\n'
         'Group ID: $groupId\n\n'
         '💪 Let\'s achieve our goals together!';
-    
+
     Share.share(
       message,
       subject: 'Join my focus group: $groupName',
@@ -139,7 +141,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       if (user == null) throw Exception('User not logged in');
 
       final groupActions = ref.read(groupActionsProvider);
-      
+
       final createdGroupId = await groupActions.createGroup(
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim(),
@@ -155,7 +157,8 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
 
       if (mounted) {
         final groupName = _nameController.text;
-        
+        final theme = Theme.of(context);
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -165,13 +168,13 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                 Expanded(child: Text('Group "$groupName" created!')),
               ],
             ),
-            backgroundColor: const Color(0xFF82D65D),
+            backgroundColor: theme.colorScheme.primary,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
         Navigator.pop(context);
-        
+
         // Show share dialog after successful creation
         Future.delayed(const Duration(milliseconds: 500), () {
           if (mounted) {
@@ -202,22 +205,20 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1A1A1A),
+        backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
+          icon: const Icon(Icons.close),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Create Group',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
+          style: theme.textTheme.headlineMedium,
         ),
       ),
       body: Form(
@@ -232,14 +233,14 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      const Color(0xFF82D65D),
-                      const Color(0xFF82D65D).withOpacity(0.6),
+                      theme.colorScheme.primary,
+                      theme.colorScheme.secondary,
                     ],
                   ),
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF82D65D).withOpacity(0.3),
+                      color: theme.colorScheme.primary.withOpacity(0.3),
                       blurRadius: 15,
                       spreadRadius: 3,
                     ),
@@ -285,18 +286,14 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                   width: 4,
                   height: 24,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF82D65D),
+                    color: theme.colorScheme.primary,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Text(
+                Text(
                   'Group Settings',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: theme.textTheme.titleLarge,
                 ),
               ],
             ),
@@ -331,10 +328,10 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFF2D2D2D),
+                color: theme.colorScheme.surface,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: const Color(0xFF82D65D).withOpacity(0.2),
+                  color: theme.colorScheme.primary.withOpacity(0.2),
                 ),
               ),
               child: Column(
@@ -345,23 +342,19 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF82D65D).withOpacity(0.2),
+                          color: theme.colorScheme.primary.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.flag,
-                          color: Color(0xFF82D65D),
+                          color: theme.colorScheme.primary,
                           size: 20,
                         ),
                       ),
                       const SizedBox(width: 12),
-                      const Text(
+                      Text(
                         'Daily Focus Goal',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: theme.textTheme.titleMedium,
                       ),
                     ],
                   ),
@@ -374,8 +367,8 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                           min: 0,
                           max: 480,
                           divisions: 48,
-                          activeColor: const Color(0xFF82D65D),
-                          inactiveColor: Colors.white24,
+                          activeColor: theme.colorScheme.primary,
+                          inactiveColor: theme.colorScheme.outline,
                           onChanged: (value) {
                             setState(() => _focusGoalMinutes = value.toInt());
                           },
@@ -384,17 +377,17 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF82D65D).withOpacity(0.2),
+                          color: theme.colorScheme.primary.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           _focusGoalMinutes == 0
                               ? 'None'
                               : _focusGoalMinutes < 60
-                                  ? '${_focusGoalMinutes}m'
-                                  : '${_focusGoalMinutes ~/ 60}h ${_focusGoalMinutes % 60}m',
-                          style: const TextStyle(
-                            color: Color(0xFF82D65D),
+                              ? '${_focusGoalMinutes}m'
+                              : '${_focusGoalMinutes ~/ 60}h ${_focusGoalMinutes % 60}m',
+                          style: TextStyle(
+                            color: theme.colorScheme.primary,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -412,36 +405,36 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _createGroup,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF82D65D),
-                  disabledBackgroundColor: const Color(0xFF82D65D).withOpacity(0.5),
+                  backgroundColor: theme.colorScheme.primary,
+                  disabledBackgroundColor: theme.colorScheme.primary.withOpacity(0.5),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
                 child: _isLoading
                     ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.black,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.add_circle, color: Colors.black, size: 20),
-                          SizedBox(width: 8),
-                          Text(
-                            'Create Group',
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
+                    : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.add_circle, color: theme.colorScheme.onPrimary, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Create Group',
+                      style: TextStyle(
+                        color: theme.colorScheme.onPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
                       ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -458,20 +451,18 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     int maxLines = 1,
     String? Function(String?)? validator,
   }) {
+    final theme = Theme.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(icon, color: const Color(0xFF82D65D), size: 20),
+            Icon(icon, color: theme.colorScheme.primary, size: 20),
             const SizedBox(width: 8),
             Text(
               label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: theme.textTheme.titleMedium,
             ),
           ],
         ),
@@ -480,23 +471,23 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
           controller: controller,
           maxLines: maxLines,
           validator: validator,
-          style: const TextStyle(color: Colors.white, fontSize: 16),
+          style: theme.textTheme.bodyLarge,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(color: Colors.white38),
+            hintStyle: theme.inputDecorationTheme.hintStyle,
             filled: true,
-            fillColor: const Color(0xFF2D2D2D),
+            fillColor: theme.colorScheme.surface,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF82D65D), width: 2),
+              borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.red, width: 2),
+              borderSide: BorderSide(color: theme.colorScheme.error, width: 2),
             ),
             contentPadding: const EdgeInsets.all(16),
           ),
@@ -512,16 +503,18 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
+    final theme = Theme.of(context);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF2D2D2D),
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: value
-              ? const Color(0xFF82D65D).withOpacity(0.3)
-              : Colors.white.withOpacity(0.1),
+              ? theme.colorScheme.primary.withOpacity(0.3)
+              : theme.colorScheme.outline.withOpacity(0.3),
         ),
       ),
       child: Row(
@@ -529,10 +522,10 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFF82D65D).withOpacity(0.2),
+              color: theme.colorScheme.primary.withOpacity(0.2),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: const Color(0xFF82D65D), size: 20),
+            child: Icon(icon, color: theme.colorScheme.primary, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -541,19 +534,12 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: theme.textTheme.titleMedium,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                    color: Colors.white54,
-                    fontSize: 14,
-                  ),
+                  style: theme.textTheme.bodyMedium,
                 ),
               ],
             ),
@@ -561,8 +547,6 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeThumbColor: const Color(0xFF82D65D),
-            activeTrackColor: const Color(0xFF82D65D).withOpacity(0.5),
           ),
         ],
       ),

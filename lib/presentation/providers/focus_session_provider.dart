@@ -12,9 +12,9 @@ final sessionRepositoryProvider = Provider<FocusSessionRepository>((ref) {
 });
 
 final todaySessionsProvider =
-    StreamProvider.family<List<FocusSessionModel>, String>((ref, userId) {
-      return ref.watch(sessionRepositoryProvider).streamTodaySessions(userId);
-    });
+StreamProvider.family<List<FocusSessionModel>, String>((ref, userId) {
+  return ref.watch(sessionRepositoryProvider).streamTodaySessions(userId);
+});
 
 // ============================================================================
 // FOCUS SESSION STATE
@@ -80,7 +80,7 @@ class FocusSessionState {
 
   bool get isActive =>
       status == FocusSessionStatus.active ||
-      status == FocusSessionStatus.paused;
+          status == FocusSessionStatus.paused;
   int get elapsedMinutes => (elapsedSeconds ?? 0) ~/ 60;
   int get remainingMinutes => (remainingSeconds ?? 0) ~/ 60;
 }
@@ -92,8 +92,7 @@ class FocusSessionState {
 class FocusSessionNotifier extends Notifier<FocusSessionState> {
   StreamSubscription? _eventSubscription;
   Timer? _localTimer;
-  
-  // KEY FIX: Single source of truth for manual ending
+
   bool _isManuallyEnding = false;
 
   @override
@@ -108,7 +107,7 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
 
   void _listenToNativeEvents() {
     _eventSubscription = NativeService.focusEventStream.listen(
-      (event) {
+          (event) {
         try {
           final eventType = event['event'] as String?;
           final data = _safeConvertToMap(event['data']);
@@ -127,11 +126,10 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
               break;
             case 'session_completed':
             case 'session_auto_completed':
-              // KEY FIX: Only auto-save if not manually ending
+            // Handle if native does send it (but we don't expect it)
               if (!_isManuallyEnding) {
+                debugPrint('🔄 Unexpected auto-completion event from native');
                 _handleAutoCompletion(data);
-              } else {
-                debugPrint('🛑 Ignoring auto-completion - manual ending in progress');
               }
               break;
             case 'timer_update':
@@ -195,20 +193,14 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
     _startLocalTimer();
   }
 
-  // KEY FIX: Separate handler for auto-completion (timer finished naturally)
   void _handleAutoCompletion(Map<String, dynamic>? data) {
-    debugPrint('🔄 Auto-completion detected - saving and going to home');
-
-    state = state.copyWith(
-      status: FocusSessionStatus.completed,
-      isPaused: false,
-    );
+    debugPrint('🔄 Auto-completion triggered - navigating to save screen');
     _stopLocalTimer();
 
-    // Auto-save without user input
-    if (data != null) {
-      _saveCompletedSession(data);
-    }
+    state = state.copyWith(
+      status: FocusSessionStatus.endingWithSave,
+      isPaused: false,
+    );
   }
 
   void _handleTimerUpdate(Map<String, dynamic>? data) {
@@ -236,6 +228,7 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
     return null;
   }
 
+  // 🎯 KEY FIX: Detect timer completion in local timer
   void _startLocalTimer() {
     _stopLocalTimer();
     _localTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -249,6 +242,26 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
           elapsedSeconds: newElapsed,
           remainingSeconds: newRemaining,
         );
+
+        // 🎯 Check if timer session completed naturally (reached 0)
+        final sessionType = state.sessionType?.toLowerCase() ?? '';
+
+        if (sessionType == 'timer' && newRemaining != null && newRemaining <= 0) {
+          debugPrint('⏰ Timer completed naturally (0:00) - navigating to save screen');
+          _stopLocalTimer();
+
+          // Stop native session
+          NativeService.endFocusSession().then((success) {
+            debugPrint('🛑 Native session ended: $success');
+          });
+
+          // Trigger navigation to save screen
+          state = state.copyWith(
+            status: FocusSessionStatus.endingWithSave,
+            isPaused: false,
+            remainingSeconds: 0,
+          );
+        }
       }
     });
   }
@@ -354,7 +367,6 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
     }
   }
 
-  // KEY FIX: Simplified endSession - just set flag and state
   Future<void> endSession() async {
     if (!state.isActive) {
       debugPrint('⚠️ No active session to end');
@@ -362,25 +374,20 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
     }
 
     debugPrint('🎯 Manual end session initiated');
-    
-    // Set flag FIRST to block any incoming auto-completion events
     _isManuallyEnding = true;
-    
+
     try {
-      // Stop native session
+      // Stop timer first
+      _stopLocalTimer();
+
+      // Try to stop native session (might already be stopped)
       final success = await NativeService.endFocusSession();
-      
-      if (success) {
-        // Stop timer
-        _stopLocalTimer();
-        
-        // Set state to trigger navigation to save screen
-        state = state.copyWith(status: FocusSessionStatus.endingWithSave);
-        
-        debugPrint('✅ Session ended - navigating to save screen');
-      } else {
-        throw Exception('Failed to end native session');
-      }
+      debugPrint('🛑 Native end result: $success');
+
+      // Set state to trigger navigation regardless of native result
+      state = state.copyWith(status: FocusSessionStatus.endingWithSave);
+
+      debugPrint('✅ Session ended - navigating to save screen');
     } catch (e) {
       debugPrint('❌ Error ending session: $e');
       _isManuallyEnding = false;
@@ -388,7 +395,6 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
         status: FocusSessionStatus.error,
         error: e.toString(),
       );
-      _stopLocalTimer();
     }
   }
 
@@ -409,29 +415,6 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
     }
   }
 
-  Future<void> _saveCompletedSession(Map<String, dynamic> data) async {
-    try {
-      final user = ref.read(currentUserProvider).value;
-      if (user == null || state.sessionId == null) return;
-
-      final actualDuration = state.elapsedMinutes;
-      final todayDate = _getTodayDateString();
-
-      await ref
-          .read(sessionRepositoryProvider)
-          .completeSession(
-            sessionId: state.sessionId!,
-            userId: user.uid,
-            actualDuration: actualDuration,
-            date: todayDate,
-          );
-
-      debugPrint('✅ Session auto-saved to Firestore');
-    } catch (e) {
-      debugPrint('❌ Error saving completed session: $e');
-    }
-  }
-
   Map<String, dynamic> getCurrentSessionData() {
     return {
       'sessionId': state.sessionId,
@@ -444,7 +427,6 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
     };
   }
 
-  // KEY FIX: Reset flag when saving with notes
   Future<void> completeSessionWithNotes({String? notes, String? tag}) async {
     try {
       final user = ref.read(currentUserProvider).value;
@@ -456,15 +438,14 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
       await ref
           .read(sessionRepositoryProvider)
           .updateSession(state.sessionId!, {
-            'actualDuration': actualDuration,
-            'endTime': Timestamp.now(),
-            'status': 'completed',
-            'notes': notes ?? '',
-            'tag': tag ?? 'untagged',
-            'completedAt': todayDate,
-          });
+        'actualDuration': actualDuration,
+        'endTime': Timestamp.now(),
+        'status': 'completed',
+        'notes': notes ?? '',
+        'tag': tag ?? 'untagged',
+        'completedAt': todayDate,
+      });
 
-      // Reset flag and state
       _isManuallyEnding = false;
       state = FocusSessionState(status: FocusSessionStatus.completed);
       _stopLocalTimer();
@@ -477,7 +458,6 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
     }
   }
 
-  // KEY FIX: Reset flag when discarding
   void discardSession() {
     try {
       _isManuallyEnding = false;
@@ -497,9 +477,9 @@ class FocusSessionNotifier extends Notifier<FocusSessionState> {
 // ============================================================================
 
 final focusSessionProvider =
-    NotifierProvider<FocusSessionNotifier, FocusSessionState>(() {
-      return FocusSessionNotifier();
-    });
+NotifierProvider<FocusSessionNotifier, FocusSessionState>(() {
+  return FocusSessionNotifier();
+});
 
 final isSessionActiveProvider = Provider<bool>((ref) {
   return ref.watch(focusSessionProvider.select((s) => s.isActive));

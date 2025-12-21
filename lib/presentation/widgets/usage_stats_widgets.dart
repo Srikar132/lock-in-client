@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lock_in/core/theme/app_theme.dart';
 import 'package:lock_in/models/usage_stats_models.dart';
 import 'dart:typed_data';
 
@@ -15,8 +16,8 @@ class UsageAppListTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: ListTile(
+        tileColor: AppColors.surface,
         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        tileColor: const Color(0xFF1E1E1E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         leading: _buildAppIcon(),
         title: Row(
@@ -98,7 +99,7 @@ class UsageAppListTile extends StatelessWidget {
   }
 
   Widget _buildFallbackIcon() {
-    return Icon(Icons.apps, color: const Color(0xFF7ED957), size: 24);
+    return Icon(Icons.apps, size: 24);
   }
 
   Widget _buildCategoryDot() {

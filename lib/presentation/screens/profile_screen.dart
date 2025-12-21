@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:lock_in/core/theme/app_theme.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
 import 'package:lock_in/presentation/providers/parental_control_provider.dart';
 import 'package:lock_in/presentation/providers/profile_provider.dart';
@@ -115,7 +116,7 @@ class ProfileScreen extends ConsumerWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF82D65D), Color(0xFF6BB84D)],
+          colors: [AppColors.primaryBlue , AppColors.lightBlue],
         ),
       ),
       child: Column(
@@ -146,7 +147,6 @@ class ProfileScreen extends ConsumerWidget {
             height: 120,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: const Color(0xFF5CAF3C),
               border: Border.all(
                 color: Colors.white.withOpacity(0.3),
                 width: 3,
@@ -295,9 +295,9 @@ class ProfileScreen extends ConsumerWidget {
                     'Upgrade to Pro',
                     style: TextStyle(
                       fontSize: 13,
-                      color: Color(0xFF82D65D),
+                      color: AppColors.primaryBlue,
                       decoration: TextDecoration.underline,
-                      decorationColor: Color(0xFF82D65D),
+                      decorationColor: AppColors.primaryBlue,
                     ),
                   ),
                 ),
@@ -309,7 +309,7 @@ class ProfileScreen extends ConsumerWidget {
             width: 80,
             height: 80,
             decoration: BoxDecoration(
-              color: const Color(0xFF82D65D),
+              color: AppColors.primaryBlue,
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Center(
@@ -358,14 +358,14 @@ class ProfileScreen extends ConsumerWidget {
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: parentalControl.isEnabled
-                        ? const Color(0xFF82D65D).withOpacity(0.2)
-                        : const Color(0xFF2A2A2A),
+                        ? AppColors.primaryBlue.withOpacity(0.2)
+                        : AppColors.primaryBlue,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
                     Icons.lock,
                     color: parentalControl.isEnabled
-                        ? const Color(0xFF82D65D)
+                        ? AppColors.primaryBlue
                         : Colors.white54,
                     size: 24,
                   ),
@@ -385,13 +385,13 @@ class ProfileScreen extends ConsumerWidget {
                   style: TextStyle(
                     fontSize: 13,
                     color: parentalControl.isEnabled
-                        ? const Color(0xFF82D65D)
+                        ? AppColors.primaryBlue
                         : Colors.white54,
                   ),
                 ),
                 trailing: Switch(
                   value: parentalControl.isEnabled,
-                  activeThumbColor: const Color(0xFF82D65D),
+                  activeThumbColor: AppColors.primaryBlue,
                   onChanged: (value) async {
                     if (value) {
                       // Enabling parental mode
@@ -413,7 +413,7 @@ class ProfileScreen extends ConsumerWidget {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
                                         content: Text('Parental mode enabled'),
-                                        backgroundColor: Color(0xFF82D65D),
+                                        backgroundColor: AppColors.primaryBlue,
                                       ),
                                     );
                                   }
@@ -563,7 +563,7 @@ class ProfileScreen extends ConsumerWidget {
                                     content: Text(
                                       'Password changed successfully',
                                     ),
-                                    backgroundColor: Color(0xFF82D65D),
+                                    backgroundColor:AppColors.primaryBlue,
                                   ),
                                 );
                               }
@@ -615,7 +615,7 @@ class ProfileScreen extends ConsumerWidget {
               children: [
                 _buildStatCard(
                   icon: Icons.access_time,
-                  iconColor: const Color(0xFF82D65D),
+                  iconColor: AppColors.primaryBlue,
                   title: 'Total Time Saved',
                   value: stats.totalTimeSaved > 0
                       ? stats.getFormattedTimeSaved()
@@ -633,12 +633,12 @@ class ProfileScreen extends ConsumerWidget {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF82D65D).withOpacity(0.2),
+                          color: AppColors.primaryBlue.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Icon(
                           Icons.center_focus_strong,
-                          color: Color(0xFF82D65D),
+                          color:AppColors.primaryBlue,
                           size: 24,
                         ),
                       ),
@@ -659,7 +659,7 @@ class ProfileScreen extends ConsumerWidget {
                               'Come back tomorrow to see your progress! ✨',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Color(0xFF82D65D),
+                                color: AppColors.primaryBlue,
                               ),
                             ),
                           ],
@@ -744,7 +744,7 @@ class ProfileScreen extends ConsumerWidget {
               },
               child: const Text(
                 'View all',
-                style: TextStyle(color: Color(0xFF82D65D), fontSize: 14),
+                style: TextStyle(color: AppColors.primaryBlue, fontSize: 14),
               ),
             ),
           ],
@@ -794,8 +794,8 @@ class ProfileScreen extends ConsumerWidget {
             height: 60,
             decoration: BoxDecoration(
               color: isLocked
-                  ? const Color(0xFF2A2A2A)
-                  : const Color(0xFF82D65D).withOpacity(0.2),
+                  ? AppColors.primaryBlue
+                  : AppColors.primaryBlue.withOpacity(0.2),
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -897,8 +897,6 @@ class ProfileScreen extends ConsumerWidget {
                   icon: const Icon(Icons.share),
                   label: const Text('Invite friends'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF82D65D),
-                    foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(100),
@@ -923,7 +921,7 @@ class ProfileScreen extends ConsumerWidget {
             height: 40,
             decoration: BoxDecoration(
               color: isActive
-                  ? const Color(0xFF82D65D)
+                  ? AppColors.primaryBlue
                   : const Color(0xFF2A2A2A),
               shape: BoxShape.circle,
             ),
@@ -974,12 +972,12 @@ class ProfileScreen extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF82D65D).withOpacity(0.2),
+                  color:AppColors.primaryBlue.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
                   Icons.description,
-                  color: Color(0xFF82D65D),
+                  color: AppColors.primaryBlue,
                   size: 24,
                 ),
               ),
