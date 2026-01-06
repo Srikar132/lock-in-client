@@ -38,13 +38,15 @@ class SimpleBlockOverlay(private val context: Context) {
             context: Context,
             platform: String,
             contentType: String,
+            message: String? = null,
+            durationSeconds: Int = 5,
             onDismiss: (() -> Unit)? = null
         ) {
             // Dismiss any existing overlay first
             currentOverlay?.dismiss()
             
             val overlay = SimpleBlockOverlay(context)
-            overlay.showOverlay(platform, contentType, onDismiss)
+            overlay.showOverlay(platform, contentType, message, durationSeconds, onDismiss)
             currentOverlay = overlay
         }
         
@@ -67,9 +69,18 @@ class SimpleBlockOverlay(private val context: Context) {
     private var overlayView: View? = null
     private val handler = Handler(Looper.getMainLooper())
     private var dismissRunnable: Runnable? = null
+    private var displayDurationMs: Long = DISPLAY_DURATION_MS
 
-    fun showOverlay(platform: String, contentType: String, onDismiss: (() -> Unit)? = null) {
+    fun showOverlay(
+        platform: String, 
+        contentType: String, 
+        customMessage: String? = null,
+        durationSeconds: Int = 5,
+        onDismiss: (() -> Unit)? = null
+    ) {
         try {
+            displayDurationMs = durationSeconds * 1000L
+            
             // Inflate the overlay layout
             overlayView = LayoutInflater.from(context).inflate(R.layout.overlay_block_shorts, null)
 
@@ -92,7 +103,7 @@ class SimpleBlockOverlay(private val context: Context) {
             }
 
             // Set up the UI
-            setupOverlayUI(platform, contentType)
+            setupOverlayUI(platform, contentType, customMessage)
 
             // Add overlay to window
             windowManager.addView(overlayView, params)
@@ -106,7 +117,7 @@ class SimpleBlockOverlay(private val context: Context) {
                 dismiss()
                 onDismiss?.invoke()
             }
-            handler.postDelayed(dismissRunnable!!, DISPLAY_DURATION_MS)
+            handler.postDelayed(dismissRunnable!!, displayDurationMs)
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error showing overlay", e)
@@ -151,29 +162,36 @@ class SimpleBlockOverlay(private val context: Context) {
         }
     }
 
-    private fun setupOverlayUI(platform: String, contentType: String) {
+    private fun setupOverlayUI(platform: String, contentType: String, customMessage: String? = null) {
         overlayView?.apply {
             // Set platform-specific title and progress bar color
             val titleText = findViewById<TextView>(R.id.blockTitle)
             val progressBar = findViewById<ProgressBar>(R.id.countdownProgress)
             val settingsButton = findViewById<View>(R.id.settingsButton)
 
-            when (platform.lowercase()) {
-                "youtube" -> {
-                    titleText?.text = "YouTube Shorts is Blocked!"
-                    progressBar?.progressTintList = android.content.res.ColorStateList.valueOf(0xFFFF6B35.toInt()) // Orange
-                }
-                "instagram" -> {
-                    titleText?.text = "Instagram Reels is Blocked!"
-                    progressBar?.progressTintList = android.content.res.ColorStateList.valueOf(0xFFE1306C.toInt()) // Instagram pink
-                }
-                "tiktok" -> {
-                    titleText?.text = "TikTok is Blocked!"
-                    progressBar?.progressTintList = android.content.res.ColorStateList.valueOf(0xFF00F2EA.toInt()) // TikTok cyan
-                }
-                else -> {
-                    titleText?.text = "Content Blocked!"
-                    progressBar?.progressTintList = android.content.res.ColorStateList.valueOf(0xFFFF6B35.toInt()) // Default orange
+            // Use custom message if provided, otherwise use default
+            if (customMessage != null) {
+                // Show custom message in title
+                titleText?.text = customMessage.split("\n").firstOrNull() ?: "Time Limit Reached"
+                progressBar?.progressTintList = android.content.res.ColorStateList.valueOf(0xFFFF3B30.toInt()) // Red for limit
+            } else {
+                when (platform.lowercase()) {
+                    "youtube" -> {
+                        titleText?.text = "YouTube Shorts is Blocked!"
+                        progressBar?.progressTintList = android.content.res.ColorStateList.valueOf(0xFFFF6B35.toInt()) // Orange
+                    }
+                    "instagram" -> {
+                        titleText?.text = "Instagram Reels is Blocked!"
+                        progressBar?.progressTintList = android.content.res.ColorStateList.valueOf(0xFFE1306C.toInt()) // Instagram pink
+                    }
+                    "tiktok" -> {
+                        titleText?.text = "TikTok is Blocked!"
+                        progressBar?.progressTintList = android.content.res.ColorStateList.valueOf(0xFF00F2EA.toInt()) // TikTok cyan
+                    }
+                    else -> {
+                        titleText?.text = "Content Blocked!"
+                        progressBar?.progressTintList = android.content.res.ColorStateList.valueOf(0xFFFF6B35.toInt()) // Default orange
+                    }
                 }
             }
 
@@ -238,7 +256,7 @@ class SimpleBlockOverlay(private val context: Context) {
 
         // Animate progress bar from 100 to 0
         val animator = ValueAnimator.ofInt(100, 0).apply {
-            duration = DISPLAY_DURATION_MS
+            duration = displayDurationMs
             interpolator = LinearInterpolator()
             addUpdateListener { animation ->
                 val progress = animation.animatedValue as Int

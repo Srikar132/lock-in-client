@@ -31,14 +31,42 @@ final groupedAppsProvider = Provider<Map<String, List<InstalledApp>>>((ref) {
   final appsAsync = ref.watch(installedAppsProvider);
   final query = ref.watch(appSearchQueryProvider).toLowerCase();
 
+  // Popular apps to prioritize at the top
+  const popularApps = [
+    'instagram', 'youtube', 'facebook', 'whatsapp', 'twitter',
+    'snapchat', 'tiktok', 'telegram', 'discord', 'reddit',
+    'netflix', 'spotify', 'twitch', 'pinterest', 'linkedin'
+  ];
+
   return appsAsync.maybeWhen(
     data: (apps) {
-      // Filter by search query only (include all apps, even system apps)
+      // Filter by search query and exclude LockIn app itself
       final filtered = apps.where((app) {
         final matchesSearch = app.appName.toLowerCase().contains(query);
+        // Exclude LockIn app from the list
+        final isNotLockIn = !app.packageName.toLowerCase().contains('lock_in') &&
+                            !app.packageName.toLowerCase().contains('lockin') &&
+                            app.appName.toLowerCase() != 'lock in' &&
+                            app.appName.toLowerCase() != 'lockin';
         // Allow all apps including YouTube which might be marked as system app
-        return matchesSearch;
+        return matchesSearch && isNotLockIn;
       }).toList();
+
+      // Sort apps: popular apps first, then alphabetically
+      filtered.sort((a, b) {
+        final aIsPopular = popularApps.any((popular) => 
+          a.appName.toLowerCase().contains(popular) || 
+          a.packageName.toLowerCase().contains(popular)
+        );
+        final bIsPopular = popularApps.any((popular) => 
+          b.appName.toLowerCase().contains(popular) || 
+          b.packageName.toLowerCase().contains(popular)
+        );
+        
+        if (aIsPopular && !bIsPopular) return -1;
+        if (!aIsPopular && bIsPopular) return 1;
+        return a.appName.compareTo(b.appName);
+      });
 
       // Group by Category
       final Map<String, List<InstalledApp>> grouped = {};

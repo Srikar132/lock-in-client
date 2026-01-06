@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:lock_in/core/constants/images.dart';
+import 'package:lock_in/presentation/screens/lumo_voice_bot_screen.dart';
 
 class LumoMascotWidget extends StatefulWidget {
   final VoidCallback onTap;
@@ -67,6 +68,9 @@ class _LumoMascotWidgetState extends State<LumoMascotWidget>
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: _handleTap,
+      onLongPress: () {
+        Navigator.push(context, MaterialPageRoute(builder: (context) => const LumoVoiceBotScreen()));
+      },
       child: ScaleTransition(
         scale: _scaleAnimation,
         child: Container(
