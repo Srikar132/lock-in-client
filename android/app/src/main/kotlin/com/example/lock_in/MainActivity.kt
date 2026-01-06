@@ -4,6 +4,8 @@ import android.app.ComponentCaller
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.annotation.NonNull
 import com.example.lock_in.permissions.PermissionManager
@@ -11,6 +13,7 @@ import com.example.lock_in.services.NotificationHelper
 import com.example.lock_in.services.focus.FocusMonitoringService
 import com.example.lock_in.services.focus.FocusSessionManager
 import com.example.lock_in.services.limits.AppLimitManager
+import com.example.lock_in.services.LockInAccessibilityService
 import com.example.lock_in.services.shared.BlockingConfig
 import com.example.lock_in.managers.ShortFormBlockManager
 import com.example.lock_in.managers.WebsiteBlockManager
@@ -49,6 +52,8 @@ class MainActivity: FlutterActivity() {
     // Method channels
     private lateinit var methodChannel: MethodChannel
     private lateinit var eventChannel: EventChannel
+    private lateinit var appLimitsChannel: MethodChannel
+    private lateinit var limitEventsChannel: MethodChannel
 
     // Event sinks
     private var eventSink: EventChannel.EventSink? = null
@@ -126,7 +131,30 @@ class MainActivity: FlutterActivity() {
         methodChannel.setMethodCallHandler { call, result ->
             handleMainMethodCall(call.method, call.arguments, result)
         }
-        Log.d(TAG, "Method channel configured")
+        
+        // App Limits channel for managing limits
+        appLimitsChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "lockin/app_limits")
+        appLimitsChannel.setMethodCallHandler { call, result ->
+            handleAppLimitsMethodCall(call.method, call.arguments, result)
+        }
+        
+        // Limit Events channel for notifying Flutter when limits are reached
+        limitEventsChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "lockin/app_limits_events")
+        
+        // Pass the channel to the AccessibilityService (with retry if service not ready)
+        if (LockInAccessibilityService.getInstance() != null) {
+            LockInAccessibilityService.getInstance()?.setLimitEventsChannel(limitEventsChannel)
+            Log.d(TAG, "✅ Limit events channel set to AccessibilityService")
+        } else {
+            Log.w(TAG, "⚠️ AccessibilityService not ready, will retry setting channel")
+            // Retry after a delay
+            Handler(Looper.getMainLooper()).postDelayed({
+                LockInAccessibilityService.getInstance()?.setLimitEventsChannel(limitEventsChannel)
+                Log.d(TAG, "✅ Limit events channel set to AccessibilityService (retry)")
+            }, 2000)
+        }
+        
+        Log.d(TAG, "Method channels configured")
     }
 
     private fun setupEventChannels(flutterEngine: FlutterEngine) {
@@ -151,6 +179,113 @@ class MainActivity: FlutterActivity() {
                 Log.d(TAG, "Event channel disconnected")
             }
         })
+    }
+    
+    /**
+     * Handle app limits method calls from Flutter
+     */
+    private fun handleAppLimitsMethodCall(
+        method: String,
+        arguments: Any?,
+        result: MethodChannel.Result
+    ) {
+        scope.launch {
+            try {
+                when (method) {
+                    "updateLimits" -> {
+                        val limitsData = arguments as? Map<String, Any>
+                        val limits = limitsData?.get("limits") as? List<Map<String, Any>>
+                        
+                        Log.d(TAG, "📥 Received updateLimits call from Flutter")
+                        
+                        if (limits != null) {
+                            val limitsMap = mutableMapOf<String, Int>()
+                            limits.forEach { limitItem ->
+                                val pkg = limitItem["package"] as? String
+                                val minutes = limitItem["limitMinutes"] as? Int
+                                if (pkg != null && minutes != null) {
+                                    limitsMap[pkg] = minutes
+                                    Log.d(TAG, "  ➡️ Limit for $pkg: $minutes minutes")
+                                }
+                            }
+                            
+                            // Update native limits holder
+                            Log.d(TAG, "Updating LockInNativeLimitsHolder with ${limitsMap.size} limits")
+                            com.example.lock_in.services.limits.LockInNativeLimitsHolder.updateLimits(limitsMap)
+                            Log.i(TAG, "✅ Successfully updated ${limitsMap.size} app limits from Flutter")
+                            
+                            withContext(Dispatchers.Main) {
+                                result.success(true)
+                            }
+                        } else {
+                            Log.e(TAG, "❌ Invalid limits data received from Flutter")
+                            withContext(Dispatchers.Main) {
+                                result.error("INVALID_ARGUMENT", "Limits list required", null)
+                            }
+                        }
+                    }
+                    
+                    "getTodayUsage" -> {
+                        val packageName = arguments as? String
+                        if (packageName != null) {
+                            val accessibilityService = LockInAccessibilityService.getInstance()
+                            val usageMinutes = if (accessibilityService != null) {
+                                val tracker = accessibilityService.getAppLimitTracker()
+                                (tracker.getTodayUsageMs(packageName) / 60000).toInt()
+                            } else {
+                                0
+                            }
+                            
+                            withContext(Dispatchers.Main) {
+                                result.success(usageMinutes)
+                            }
+                        } else {
+                            withContext(Dispatchers.Main) {
+                                result.error("INVALID_ARGUMENT", "Package name required", null)
+                            }
+                        }
+                    }
+                    
+                    "getAllUsageStats" -> {
+                        val accessibilityService = LockInAccessibilityService.getInstance()
+                        val stats = if (accessibilityService != null) {
+                            accessibilityService.getAppLimitTracker().getAllUsageStats()
+                        } else {
+                            emptyMap<String, Map<String, Any>>()
+                        }
+                        
+                        withContext(Dispatchers.Main) {
+                            result.success(stats)
+                        }
+                    }
+                    
+                    "forceCheckLimits" -> {
+                        val accessibilityService = LockInAccessibilityService.getInstance()
+                        if (accessibilityService != null) {
+                            val exceededPackages = accessibilityService.getAppLimitTracker().forceCheckAllLimits()
+                            withContext(Dispatchers.Main) {
+                                result.success(exceededPackages)
+                            }
+                        } else {
+                            withContext(Dispatchers.Main) {
+                                result.success(emptyList<String>())
+                            }
+                        }
+                    }
+                    
+                    else -> {
+                        withContext(Dispatchers.Main) {
+                            result.notImplemented()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error handling app limits method: $method", e)
+                withContext(Dispatchers.Main) {
+                    result.error("ERROR", e.message ?: "Unknown error", null)
+                }
+            }
+        }
     }
 
     private fun handleMainMethodCall(

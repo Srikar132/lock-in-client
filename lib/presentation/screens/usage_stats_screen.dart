@@ -45,6 +45,7 @@ class _UsageStatsScreenState extends ConsumerState<UsageStatsScreen>
         title: const Text('Usage Insights'),
         backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
+       
         actions: [
           IconButton(
             icon: Icon(Icons.help_outline, color: theme.iconTheme.color),
