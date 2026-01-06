@@ -43,7 +43,6 @@ class AllowedAppsDrawer extends ConsumerWidget {
                 Icon(
                   Icons.apps_rounded,
                   size: 28,
-                  color: AppColors.primaryGreen,
                 ),
                 const SizedBox(width: 12),
                 Text(
@@ -124,7 +123,6 @@ class AllowedAppsDrawer extends ConsumerWidget {
               },
               loading: () => Center(
                 child: CircularProgressIndicator(
-                  color: AppColors.primaryGreen,
                 ),
               ),
               error: (error, stack) => Center(
@@ -242,8 +240,6 @@ class _AppIconTile extends ConsumerWidget {
     return InkWell(
       onTap: () => _launchApp(context, ref),
       borderRadius: BorderRadius.circular(16),
-      splashColor: AppColors.primaryGreen.withOpacity(0.1),
-      highlightColor: AppColors.primaryGreen.withOpacity(0.05),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -281,7 +277,6 @@ class _AppIconTile extends ConsumerWidget {
                   height: 24,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: AppColors.primaryGreen.withOpacity(0.5),
                   ),
                 ),
               ),

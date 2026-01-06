@@ -349,7 +349,7 @@ class _FocusTimeBottomSheetState extends ConsumerState<FocusTimeBottomSheet> {
 
     return Container(
       // FIXED: Use available height to prevent overflow
-      height: availableHeight * 0.85,
+      height: availableHeight * 0.60,
       decoration: BoxDecoration(
         color: Theme.of(context).scaffoldBackgroundColor,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -383,17 +383,17 @@ class _FocusTimeBottomSheetState extends ConsumerState<FocusTimeBottomSheet> {
                     ),
                     const SizedBox(height: 12),
                     const _BlockedAppsSection(),
-                    const SizedBox(height: 12),
-                    _buildToggleOption(
-                      title: 'Block phone home screen',
-                      value: _blockHomeScreen,
-                      onChanged: (value) {
-                        setState(() => _blockHomeScreen = value);
-                        _updateSettings(blockHome: value);
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    _buildStrictModeOption(),
+                    // const SizedBox(height: 12),
+                    // _buildToggleOption(
+                    //   title: 'Block phone home screen',
+                    //   value: _blockHomeScreen,
+                    //   onChanged: (value) {
+                    //     setState(() => _blockHomeScreen = value);
+                    //     _updateSettings(blockHome: value);
+                    //   },
+                    // ),
+                    // const SizedBox(height: 12),
+                    // _buildStrictModeOption(),
                   ],
                 ),
               ),
@@ -586,7 +586,7 @@ class _FocusTimeBottomSheetState extends ConsumerState<FocusTimeBottomSheet> {
             child: Switch(
               value: value,
               onChanged: onChanged,
-              activeColor: Colors.white,
+              activeThumbColor: Colors.white,
               activeTrackColor: Colors.white.withOpacity(0.3),
               inactiveThumbColor: Colors.white.withOpacity(0.5),
               inactiveTrackColor: Colors.white.withOpacity(0.1),
@@ -649,7 +649,7 @@ class _FocusTimeBottomSheetState extends ConsumerState<FocusTimeBottomSheet> {
                     setState(() => _strictMode = value);
                     _updateSettings(strict: value);
                   },
-                  activeColor: Colors.white,
+                  activeThumbColor: Colors.white,
                   activeTrackColor: Colors.white.withOpacity(0.3),
                   inactiveThumbColor: Colors.white.withOpacity(0.5),
                   inactiveTrackColor: Colors.white.withOpacity(0.1),
@@ -674,10 +674,270 @@ class _FocusTimeBottomSheetState extends ConsumerState<FocusTimeBottomSheet> {
   }
 
   void _showDurationPicker() {
-    /* Keep empty as requested */
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.6,
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            // Drag Handle
+            const BottomSheetDragHandle(),
+            
+            // Title
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Select Duration',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white54),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            
+            const Divider(color: Color(0xFF2A2A2A), height: 1),
+            
+            // Duration Options
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: 24, // 5 to 120 minutes (5-minute increments)
+                itemBuilder: (context, index) {
+                  final minutes = (index + 1) * 5;
+                  final isSelected = minutes == _duration;
+                  final hours = minutes ~/ 60;
+                  final remainingMins = minutes % 60;
+                  
+                  String displayText;
+                  if (minutes < 60) {
+                    displayText = '$minutes minutes';
+                  } else if (remainingMins == 0) {
+                    displayText = '$hours ${hours == 1 ? 'hour' : 'hours'}';
+                  } else {
+                    displayText = '$hours ${hours == 1 ? 'hour' : 'hours'} $remainingMins min';
+                  }
+                  
+                  return InkWell(
+                    onTap: () {
+                      setState(() => _duration = minutes);
+                      _updateSettings(duration: minutes);
+                      Navigator.pop(context);
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.transparent,
+                          width: 2,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            displayText,
+                            style: TextStyle(
+                              color: isSelected
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Colors.white,
+                              fontSize: 16,
+                              fontWeight: isSelected
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                          if (isSelected)
+                            Icon(
+                              Icons.check_circle,
+                              color: Theme.of(context).colorScheme.primary,
+                              size: 24,
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showBreaksPicker() {
-    /* Keep empty as requested */
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.5,
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            // Drag Handle
+            const BottomSheetDragHandle(),
+            
+            // Title
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Select Breaks',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white54),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            
+            const Divider(color: Color(0xFF2A2A2A), height: 1),
+            
+            // Subtitle
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Short breaks help you stay focused for longer',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.6),
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            
+            // Break Options
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: 11, // 0 to 10 breaks
+                itemBuilder: (context, index) {
+                  final isSelected = index == _breaks;
+                  
+                  String displayText;
+                  String subtitle;
+                  
+                  if (index == 0) {
+                    displayText = 'No breaks';
+                    subtitle = 'Pure focus mode';
+                  } else if (index == 1) {
+                    displayText = '1 break';
+                    subtitle = 'Recommended for short sessions';
+                  } else {
+                    displayText = '$index breaks';
+                    subtitle = 'Every ${(_duration / (index + 1)).round()} minutes';
+                  }
+                  
+                  return InkWell(
+                    onTap: () {
+                      setState(() => _breaks = index);
+                      _updateSettings(breaks: index);
+                      Navigator.pop(context);
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.transparent,
+                          width: 2,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  displayText,
+                                  style: TextStyle(
+                                    color: isSelected
+                                        ? Theme.of(context).colorScheme.primary
+                                        : Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  subtitle,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.5),
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (isSelected)
+                            Icon(
+                              Icons.check_circle,
+                              color: Theme.of(context).colorScheme.primary,
+                              size: 24,
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lock_in/core/theme/app_theme.dart';
 import 'package:lock_in/presentation/providers/group_provider.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
 import 'package:lock_in/presentation/screens/group_detail_screen.dart';
@@ -66,6 +67,17 @@ class GroupScreen extends ConsumerWidget {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.add, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const CreateGroupScreen(),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.search, color: Colors.white),
             onPressed: () {
               showSearch(
@@ -91,7 +103,7 @@ class GroupScreen extends ConsumerWidget {
                       width: 3,
                       height: 20,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF82D65D),
+                        color: AppColors.primaryBlue,
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -132,7 +144,7 @@ class GroupScreen extends ConsumerWidget {
                             width: 3,
                             height: 20,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF82D65D),
+                              color:AppColors.primaryBlue,
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),
@@ -152,13 +164,13 @@ class GroupScreen extends ConsumerWidget {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF82D65D).withOpacity(0.2),
+                              color: AppColors.lightBlue.withAlpha(25),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Text(
                               'PUBLIC',
                               style: TextStyle(
-                                color: Color(0xFF82D65D),
+                                color: AppColors.primaryBlue,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -218,7 +230,6 @@ class GroupScreen extends ConsumerWidget {
                   child: Padding(
                     padding: EdgeInsets.all(20),
                     child: CircularProgressIndicator(
-                      color: Color(0xFF82D65D),
                       strokeWidth: 2,
                     ),
                   ),
@@ -229,7 +240,7 @@ class GroupScreen extends ConsumerWidget {
           );
         },
         loading: () => const Center(
-          child: CircularProgressIndicator(color: Color(0xFF82D65D)),
+          child: CircularProgressIndicator(),
         ),
         error: (error, stack) => Center(
           child: Column(
@@ -253,26 +264,6 @@ class GroupScreen extends ConsumerWidget {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const CreateGroupScreen(),
-            ),
-          );
-        },
-        backgroundColor: const Color(0xFF82D65D),
-        icon: const Icon(Icons.add, color: Colors.black, size: 20),
-        label: const Text(
-          'Create Group',
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
-          ),
-        ),
-      ),
     );
   }
 
@@ -285,13 +276,11 @@ class GroupScreen extends ConsumerWidget {
             width: 120,
             height: 120,
             decoration: BoxDecoration(
-              color: const Color(0xFF82D65D).withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.group_outlined,
               size: 60,
-              color: Color(0xFF82D65D),
             ),
           ),
           const SizedBox(height: 32),
@@ -318,10 +307,14 @@ class GroupScreen extends ConsumerWidget {
           const SizedBox(height: 32),
           ElevatedButton.icon(
             onPressed: () {
-             
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const CreateGroupScreen(),
+                ),
+              );
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF82D65D),
               padding: const EdgeInsets.symmetric(
                 horizontal: 24,
                 vertical: 12,
@@ -332,7 +325,7 @@ class GroupScreen extends ConsumerWidget {
             ),
             icon: const Icon(Icons.add, color: Colors.black, size: 20),
             label: const Text(
-              'Create Group',
+              'Add Group',
               style: TextStyle(
                 color: Colors.black,
                 fontWeight: FontWeight.bold,
@@ -448,14 +441,14 @@ class _GroupCard extends ConsumerWidget {
                       children: [
                         const Icon(
                           Icons.access_time,
-                          color: Color(0xFF82D65D),
+                          color: AppColors.primaryBlue,
                           size: 16,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           group.getFormattedFocusTime(),
                           style: const TextStyle(
-                            color: Color(0xFF82D65D),
+                            color: AppColors.primaryBlue,
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
@@ -530,7 +523,7 @@ class GroupSearchDelegate extends SearchDelegate<String> {
 
   Widget _buildSearchResults(BuildContext context) {
     return Container(
-      color: const Color(0xFF1A1A1A),
+      color: AppColors.background,
       child: Consumer(
         builder: (context, ref, child) {
           if (query.isEmpty) {
@@ -586,7 +579,7 @@ class GroupSearchDelegate extends SearchDelegate<String> {
               );
             },
             loading: () => const Center(
-              child: CircularProgressIndicator(color: Color(0xFF82D65D)),
+              child: CircularProgressIndicator(),
             ),
             error: (error, stack) => Center(
               child: Text(

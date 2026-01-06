@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lock_in/core/theme/app_theme.dart';
 import 'package:lock_in/presentation/providers/focus_session_provider.dart';
 import 'package:lock_in/core/constants/images.dart';
 import 'package:lock_in/presentation/screens/splash_screen.dart';
@@ -96,7 +97,7 @@ class _SaveSessionScreenState extends ConsumerState<SaveSessionScreen> {
     final period = hour >= 12 ? 'PM' : 'AM';
     final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
     
-    return '${displayHour}:${minute.toString().padLeft(2, '0')} $period';
+    return '$displayHour:${minute.toString().padLeft(2, '0')} $period';
   }
 
   Future<void> _saveSession() async {
@@ -333,12 +334,12 @@ class _SaveSessionScreenState extends ConsumerState<SaveSessionScreen> {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
-          color: const Color(0xFF82D65D),
+          color: AppColors.lightBlue,
           width: 3,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF82D65D).withOpacity(0.3),
+            color: AppColors.lightBlue.withOpacity(0.3),
             blurRadius: 16,
             spreadRadius: 2,
           ),
@@ -377,7 +378,7 @@ class _SaveSessionScreenState extends ConsumerState<SaveSessionScreen> {
       children: [
         Expanded(
           child: _buildStatCard(
-            iconColor: const Color(0xFF82D65D),
+            iconColor: AppColors.lightBlue,
             label: 'Productive',
             value: _getProductiveTime(),
           ),
@@ -515,12 +516,12 @@ class _SaveSessionScreenState extends ConsumerState<SaveSessionScreen> {
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                color: const Color(0xFF82D65D).withOpacity(0.15),
+                color: AppColors.lightBlue.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(
                 Icons.notes_rounded,
-                color: Color(0xFF82D65D),
+                color: AppColors.lightBlue,
                 size: 18,
               ),
             ),
@@ -532,6 +533,7 @@ class _SaveSessionScreenState extends ConsumerState<SaveSessionScreen> {
                   color: Colors.white,
                   fontSize: 14,
                   height: 1.4,
+                  backgroundColor: Colors.transparent
                 ),
                 decoration: InputDecoration(
                   hintText: 'Add notes here',
@@ -541,7 +543,6 @@ class _SaveSessionScreenState extends ConsumerState<SaveSessionScreen> {
                   ),
                   border: InputBorder.none,
                   isDense: true,
-                  contentPadding: EdgeInsets.zero,
                 ),
                 maxLines: 1,
               ),

@@ -2,9 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lock_in/core/constants/audios.dart';
+import 'package:lock_in/core/theme/app_theme.dart';
 import 'package:lock_in/presentation/providers/audio_providers.dart';
 import 'package:lock_in/services/audio_service.dart';
-import 'package:lock_in/widgets/audio_control_widget.dart';
 
 class AudioBottomSheet extends ConsumerStatefulWidget {
   const AudioBottomSheet({super.key});
@@ -81,16 +81,16 @@ class _AudioBottomSheetState extends ConsumerState<AudioBottomSheet> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF82D65D).withOpacity(0.15),
+                  color: AppColors.primaryBlue.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: const Color(0xFF82D65D).withOpacity(0.3),
+                    color: AppColors.primaryBlue.withOpacity(0.3),
                     width: 1.5,
                   ),
                 ),
                 child: const Icon(
                   Icons.music_note_rounded,
-                  color: Color(0xFF82D65D),
+                  color: AppColors.primaryBlue,
                   size: 28,
                 ),
               ),
@@ -142,7 +142,7 @@ class _AudioBottomSheetState extends ConsumerState<AudioBottomSheet> {
               child: Text(
                 'SELECT YOUR SOUND',
                 style: theme.textTheme.labelLarge?.copyWith(
-                  color: const Color(0xFF82D65D),
+                  color: AppColors.primaryBlue,
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1.2,
@@ -187,13 +187,13 @@ class _AudioBottomSheetState extends ConsumerState<AudioBottomSheet> {
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: isSelected 
-              ? const Color(0xFF82D65D)
+              ? AppColors.primaryBlue
               : const Color(0xFF3A3A3A),
             width: isSelected ? 2.5 : 1.5,
           ),
           boxShadow: isSelected ? [
             BoxShadow(
-              color: const Color(0xFF82D65D).withOpacity(0.25),
+              color:AppColors.primaryBlue.withOpacity(0.25),
               blurRadius: 24,
               offset: const Offset(0, 8),
             ),
@@ -221,15 +221,15 @@ class _AudioBottomSheetState extends ConsumerState<AudioBottomSheet> {
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          const Color(0xFF82D65D).withOpacity(0.3),
-                          const Color(0xFF5CAF3C).withOpacity(0.2),
+                          AppColors.primaryBlue.withOpacity(0.3),
+                          AppColors.lightBlue.withOpacity(0.2),
                         ],
                       ),
                     ),
                     child: Center(
                       child: Icon(
                         isMusic ? Icons.music_note_rounded : Icons.volume_up_rounded,
-                        color: const Color(0xFF82D65D).withOpacity(0.6),
+                        color: AppColors.primaryBlue.withOpacity(0.6),
                         size: 48,
                       ),
                     ),
@@ -259,8 +259,8 @@ class _AudioBottomSheetState extends ConsumerState<AudioBottomSheet> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        const Color(0xFF82D65D).withOpacity(0.15),
-                        const Color(0xFF82D65D).withOpacity(0.05),
+                        AppColors.primaryBlue.withOpacity(0.15),
+                        AppColors.primaryBlue.withOpacity(0.05),
                       ],
                     ),
                   ),
@@ -284,7 +284,7 @@ class _AudioBottomSheetState extends ConsumerState<AudioBottomSheet> {
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
                               color: isSelected
-                                ? const Color(0xFF82D65D).withOpacity(0.6)
+                                ? AppColors.primaryBlue.withOpacity(0.6)
                                 : Colors.white.withOpacity(0.2),
                               width: 1,
                             ),
@@ -296,7 +296,7 @@ class _AudioBottomSheetState extends ConsumerState<AudioBottomSheet> {
                                 isMusic ? Icons.album_rounded : Icons.graphic_eq_rounded,
                                 size: 12,
                                 color: isSelected
-                                  ? const Color(0xFF82D65D)
+                                  ? AppColors.primaryBlue
                                   : Colors.white,
                               ),
                               const SizedBox(width: 4),
@@ -307,7 +307,7 @@ class _AudioBottomSheetState extends ConsumerState<AudioBottomSheet> {
                                   fontSize: 10,
                                   letterSpacing: 0.5,
                                   color: isSelected
-                                    ? const Color(0xFF82D65D)
+                                    ? AppColors.primaryBlue
                                     : Colors.white,
                                 ),
                               ),
@@ -327,12 +327,12 @@ class _AudioBottomSheetState extends ConsumerState<AudioBottomSheet> {
                           height: 52,
                           decoration: BoxDecoration(
                             color: isSelected 
-                              ? const Color(0xFF82D65D)
+                              ? AppColors.primaryBlue
                               : Colors.white,
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: (isSelected ? const Color(0xFF82D65D) : Colors.white)
+                                color: (isSelected ? AppColors.primaryBlue : Colors.white)
                                     .withOpacity(0.5),
                                 blurRadius: 16,
                                 offset: const Offset(0, 4),
@@ -417,7 +417,7 @@ class _AudioBottomSheetState extends ConsumerState<AudioBottomSheet> {
       SnackBar(
         content: Row(
           children: [
-            Icon(icon, color: const Color(0xFF82D65D), size: 20),
+            Icon(icon, color: AppColors.primaryBlue, size: 20),
             const SizedBox(width: 12),
             Expanded(
               child: Text(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lock_in/core/theme/app_theme.dart';
 import 'package:lock_in/data/models/group_memeber_model.dart';
 import 'package:lock_in/data/models/group_model.dart';
 import 'package:lock_in/presentation/providers/group_provider.dart';
@@ -62,7 +63,6 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
     final user = ref.watch(authStateProvider).value;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
       body: groupAsync.when(
         data: (group) {
           if (group == null) return _buildErrorState('Group not found');
@@ -78,7 +78,6 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                 expandedHeight: 220,
                 pinned: true,
                 stretch: true,
-                backgroundColor: const Color(0xFF1A1A1A),
                 leading: IconButton(
                   icon: const Icon(Icons.arrow_back, color: Colors.white),
                   onPressed: () => Navigator.pop(context),
@@ -119,8 +118,8 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          const Color(0xFF82D65D).withOpacity(0.3),
-                          const Color(0xFF1A1A1A),
+                          AppColors.primaryBlue.withOpacity(0.3),
+                          AppColors.primaryBlue,
                         ],
                       ),
                     ),
@@ -206,18 +205,17 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF82D65D).withOpacity(0.2),
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: const Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Icon(Icons.public, color: Color(0xFF82D65D), size: 12),
+                                          Icon(Icons.public, size: 12),
                                           SizedBox(width: 4),
                                           Text(
                                             'Public',
                                             style: TextStyle(
-                                              color: Color(0xFF82D65D),
+                                              color: Colors.white,
                                               fontSize: 11,
                                               fontWeight: FontWeight.w600,
                                             ),
@@ -246,7 +244,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                           icon: Icons.access_time,
                           label: 'Total Focus',
                           value: group.getFormattedFocusTime(),
-                          color: const Color(0xFF82D65D),
+                          color: AppColors.lightBlue,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -257,7 +255,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                           value: group.settings.focusGoalMinutes > 0
                               ? '${group.settings.focusGoalMinutes}m'
                               : 'None',
-                          color: Colors.amber,
+                          color: AppColors.deepBlue,
                         ),
                       ),
                     ],
@@ -283,10 +281,10 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                             Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF82D65D).withOpacity(0.2),
+                                color: AppColors.primaryBlue.withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(6),
                               ),
-                              child: const Icon(Icons.description, color: Color(0xFF82D65D), size: 16),
+                              child: const Icon(Icons.description, color : AppColors.primaryBlue, size: 16),
                             ),
                             const SizedBox(width: 10),
                             const Text(
@@ -322,13 +320,12 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                 return Column(
                   children: [
                     Container(
-                      color: const Color(0xFF1A1A1A),
+                      color: AppColors.background,
                       child: TabBar(
                         controller: _tabController,
-                        labelColor: const Color(0xFF82D65D),
                         unselectedLabelColor: Colors.white54,
-                        indicatorColor: const Color(0xFF82D65D),
                         indicatorWeight: 3,
+
                         tabs: const [
                           Tab(icon: Icon(Icons.people, size: 20), text: 'Members'),
                           Tab(icon: Icon(Icons.emoji_events, size: 20), text: 'Leaderboard'),
@@ -387,7 +384,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF2D2D2D),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withOpacity(0.3)),
       ),
@@ -439,11 +436,11 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: const Color(0xFF2D2D2D),
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isCreator
-                  ? const Color(0xFF82D65D).withOpacity(0.3)
+                  ? AppColors.primaryBlue.withOpacity(0.3)
                   : Colors.white.withOpacity(0.1),
             ),
           ),
@@ -453,11 +450,11 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                 children: [
                   CircleAvatar(
                     radius: 24,
-                    backgroundColor: const Color(0xFF82D65D).withOpacity(0.2),
+                    backgroundColor: AppColors.primaryBlue.withOpacity(0.2),
                     child: Text(
                       member.displayName[0].toUpperCase(),
                       style: const TextStyle(
-                        color: Color(0xFF82D65D),
+                        color : AppColors.primaryBlue,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                       ),
@@ -470,9 +467,9 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF82D65D),
+                          color: AppColors.primaryBlue.withAlpha(50),
                           shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFF2D2D2D), width: 2),
+                          border: Border.all(color: AppColors.primaryBlue, width: 2),
                         ),
                         child: const Icon(Icons.star, color: Colors.black, size: 12),
                       ),
@@ -502,13 +499,13 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF82D65D).withOpacity(0.2),
+                              color: AppColors.primaryBlue.withAlpha(50),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: const Text(
                               'CREATOR',
                               style: TextStyle(
-                                color: Color(0xFF82D65D),
+                                color: AppColors.primaryBlue,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -589,7 +586,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: const Color(0xFF2D2D2D),
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: rank <= 3
@@ -614,7 +611,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                           : rank == 2
                               ? Colors.grey.withOpacity(0.2)
                               : Colors.brown.withOpacity(0.2))
-                      : const Color(0xFF82D65D).withOpacity(0.2),
+                      : AppColors.primaryBlue.withOpacity(0.2),
                   shape: BoxShape.circle,
                 ),
                 child: Center(
@@ -623,7 +620,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                       : Text(
                           '#$rank',
                           style: const TextStyle(
-                            color: Color(0xFF82D65D),
+                            color: AppColors.primaryBlue,
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
                           ),
@@ -647,12 +644,12 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(Icons.access_time, color: Color(0xFF82D65D), size: 14),
+                        const Icon(Icons.access_time, color: AppColors.primaryBlue, size: 14),
                         const SizedBox(width: 4),
                         Text(
                           member.getFormattedFocusTime(),
                           style: const TextStyle(
-                            color: Color(0xFF82D65D),
+                            color: AppColors.primaryBlue,
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
@@ -681,7 +678,6 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
       child: ElevatedButton(
         onPressed: () => _joinGroup(group),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF82D65D),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
         child: const Row(

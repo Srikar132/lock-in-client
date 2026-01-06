@@ -147,7 +147,7 @@ Widget _buildFilterChips(ThemeData theme) {
         return todayUsage.when(
           data: (data) => _buildDailyContent(data),
           loading: () => const Center(
-            child: CircularProgressIndicator(color: Color(0xFF7ED957)),
+            child: CircularProgressIndicator(),
           ),
           error: (error, _) => Center(
             child: Column(
@@ -193,7 +193,7 @@ Widget _buildFilterChips(ThemeData theme) {
         return weeklyUsage.when(
           data: (data) => _buildWeeklyContent(data, chartData),
           loading: () => const Center(
-            child: CircularProgressIndicator(color: Color(0xFF7ED957)),
+            child: CircularProgressIndicator(),
           ),
           error: (error, _) => Center(
             child: Column(
@@ -353,7 +353,7 @@ Widget _buildFilterChips(ThemeData theme) {
                     loading: () => const SizedBox(
                       height: 200,
                       child: Center(
-                        child: CircularProgressIndicator(color: Color(0xFF7ED957)),
+                        child: CircularProgressIndicator(),
                       ),
                     ),
                     error: (_, __) => const SizedBox(

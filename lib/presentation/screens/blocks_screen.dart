@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:lock_in/core/theme/app_theme.dart';
+import 'package:lock_in/presentation/providers/app_management_provide.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
 import 'package:lock_in/presentation/providers/app_limits_provider.dart';
 import 'package:lock_in/presentation/providers/blocked_content_provider.dart';
@@ -541,7 +543,7 @@ class _AppLimitTileState extends ConsumerState<_AppLimitTile> {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isExceeded
@@ -638,54 +640,34 @@ class _AppLimitTileState extends ConsumerState<_AppLimitTile> {
               ],
             ),
           ),
-          if (widget.limit.isActive) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '$_currentUsage min',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.5),
-                          fontSize: 11,
-                        ),
-                      ),
-                      Text(
-                        '${widget.limit.dailyLimit} min',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.5),
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 6,
-                      backgroundColor: Colors.white.withOpacity(0.1),
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        isExceeded
-                            ? Colors.red
-                            : isNearLimit
-                            ? Colors.orange
-                            : const Color(0xFF82D65D),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+          child: const Icon(Icons.timer, color: Colors.white70),
+        ),
+        title: Text(limit.appName, style: const TextStyle(color: Colors.white)),
+        subtitle: Text(
+          '${limit.dailyLimit} min/day',
+          style: TextStyle(color: Colors.white.withOpacity(0.5)),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Transform.scale(
+              scale: 0.8,
+              child: Switch(
+                value: limit.isActive,
+                activeThumbColor: const Color(0xFF82D65D), // ReGain Green
+                activeTrackColor: const Color(0xFF82D65D).withOpacity(0.3),
+                inactiveTrackColor: Colors.grey.withOpacity(0.2),
+                onChanged: (value) async {
+                  // If enabling, check permissions first
+                  if (value) {
+                    final hasPermission = await _checkAndRequestPermissions(
+                      context,
+                      ref,
+                    );
+                    if (!hasPermission) {
+                      return;
+                    }
+                  }
 
   Future<void> _handleToggle(bool value) async {
     // If enabling, check permissions first
@@ -971,20 +953,12 @@ class _ShortFormBlocksSection extends ConsumerWidget {
           // Extract blocks directly from the content model
           final blocks = content.shortFormBlocks;
 
-          // Log what we got from Firestore
-          print(
-            '📱 ShortFormBlocksSection: Retrieved from Firestore - ${blocks.keys.toList()}',
-          );
-          blocks.forEach((key, block) {
-            print('   - $key: isBlocked=${block.isBlocked}');
-          });
-
           return Column(
             children: [
               _ShortFormToggle(
                 title: 'YouTube Shorts',
                 subtitle: 'Block Shorts shelf & feed',
-                icon: Icons.play_circle_outline,
+                packageName: 'com.google.android.youtube',
                 isBlocked: blocks['YouTube_Shorts']?.isBlocked ?? false,
                 onChanged: (value) => _updateBlock(
                   context,
@@ -998,8 +972,8 @@ class _ShortFormBlocksSection extends ConsumerWidget {
               _ShortFormToggle(
                 title: 'Instagram Reels',
                 subtitle: 'Block Reels tab & feed',
-                icon: Icons.camera_alt_outlined,
                 isBlocked: blocks['Instagram_Reels']?.isBlocked ?? false,
+                packageName: "com.instagram.android",
                 onChanged: (value) => _updateBlock(
                   context,
                   ref,
@@ -1008,35 +982,7 @@ class _ShortFormBlocksSection extends ConsumerWidget {
                   'Reels',
                   value,
                 ),
-              ),
-              _ShortFormToggle(
-                title: 'TikTok',
-                subtitle: 'Block app entirely',
-                icon: Icons.music_note_outlined,
-                isBlocked: blocks['TikTok_Videos']?.isBlocked ?? false,
-                onChanged: (value) => _updateBlock(
-                  context,
-                  ref,
-                  userId,
-                  'TikTok',
-                  'Videos',
-                  value,
-                ),
-              ),
-              _ShortFormToggle(
-                title: 'Facebook Reels',
-                subtitle: 'Block Reels section',
-                icon: Icons.facebook_outlined,
-                isBlocked: blocks['Facebook_Reels']?.isBlocked ?? false,
-                onChanged: (value) => _updateBlock(
-                  context,
-                  ref,
-                  userId,
-                  'Facebook',
-                  'Reels',
-                  value,
-                ),
-              ),
+              )
             ],
           );
         },
@@ -1180,27 +1126,26 @@ class _ShortFormBlocksSection extends ConsumerWidget {
     }
   }
 }
-
-class _ShortFormToggle extends StatefulWidget {
+class _ShortFormToggle extends ConsumerStatefulWidget {
   final String title;
   final String subtitle;
-  final IconData icon;
+  final String packageName; // Changed from IconData to packageName
   final bool isBlocked;
   final ValueChanged<bool> onChanged;
 
   const _ShortFormToggle({
     required this.title,
     required this.subtitle,
-    required this.icon,
+    required this.packageName,
     required this.isBlocked,
     required this.onChanged,
   });
 
   @override
-  State<_ShortFormToggle> createState() => _ShortFormToggleState();
+  ConsumerState<_ShortFormToggle> createState() => _ShortFormToggleState();
 }
 
-class _ShortFormToggleState extends State<_ShortFormToggle> {
+class _ShortFormToggleState extends ConsumerState<_ShortFormToggle> {
   bool? _optimisticValue;
   bool _isUpdating = false;
   DateTime? _lastUpdateTime;
@@ -1210,19 +1155,10 @@ class _ShortFormToggleState extends State<_ShortFormToggle> {
     super.didUpdateWidget(oldWidget);
     // Clear optimistic value when Firestore confirms the change
     if (oldWidget.isBlocked != widget.isBlocked) {
-      print(
-        '🔄 Toggle ${widget.title}: Firestore updated from ${oldWidget.isBlocked} to ${widget.isBlocked}, optimistic was $_optimisticValue',
-      );
       if (_optimisticValue != null && _optimisticValue == widget.isBlocked) {
-        print(
-          '✅ Toggle ${widget.title}: Clearing optimistic value (confirmed by Firestore)',
-        );
         setState(() => _optimisticValue = null);
       } else if (_optimisticValue != null &&
           _optimisticValue != widget.isBlocked) {
-        print(
-          '⚠️ Toggle ${widget.title}: Firestore value conflicts with optimistic value',
-        );
         // Firestore value is different from what we expected, trust Firestore
         setState(() => _optimisticValue = null);
       }
@@ -1242,22 +1178,56 @@ class _ShortFormToggleState extends State<_ShortFormToggle> {
   Widget build(BuildContext context) {
     // Use optimistic value if available, otherwise use actual value
     final displayValue = _optimisticValue ?? widget.isBlocked;
-    print(
-      '🎨 Toggle ${widget.title}: Rendering with displayValue=$displayValue (optimistic=$_optimisticValue, firestore=${widget.isBlocked})',
-    );
+
+    // Watch the app icon provider
+    final appIconAsync = ref.watch(appIconProvider(widget.packageName));
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withOpacity(0.05)),
       ),
       child: SwitchListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        secondary: Icon(
-          widget.icon,
-          color: displayValue ? const Color(0xFF82D65D) : Colors.grey,
+        secondary: SizedBox(
+          width: 40,
+          height: 40,
+          child: appIconAsync.when(
+            data: (iconData) {
+              if (iconData != null) {
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.memory(
+                    iconData,
+                    width: 40,
+                    height: 40,
+                    fit: BoxFit.cover,
+                    opacity: displayValue
+                        ? const AlwaysStoppedAnimation(1.0)
+                        : const AlwaysStoppedAnimation(0.5),
+                  ),
+                );
+              }
+              // Fallback icon if no image data
+              return Icon(
+                Icons.apps,
+                color: displayValue ? AppColors.primaryBlue : Colors.grey,
+              );
+            },
+            loading: () => const Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+            error: (_, __) => Icon(
+              Icons.apps,
+              color: displayValue ? AppColors.primaryBlue : Colors.grey,
+            ),
+          ),
         ),
         title: Text(
           widget.title,
@@ -1271,50 +1241,49 @@ class _ShortFormToggleState extends State<_ShortFormToggle> {
           style: TextStyle(color: Colors.white.withOpacity(0.5)),
         ),
         value: displayValue,
-        activeColor: const Color(0xFF82D65D),
-        activeTrackColor: const Color(0xFF82D65D).withOpacity(0.3),
+        activeThumbColor: AppColors.primaryBlue,
+        activeTrackColor: AppColors.primaryBlue.withOpacity(0.3),
         inactiveTrackColor: Colors.grey.withOpacity(0.2),
         onChanged: _isUpdating
             ? null
             : (value) {
-                if (_isUpdating) return;
+          if (_isUpdating) return;
 
-                // Set optimistic value immediately for instant UI feedback
-                setState(() {
-                  _optimisticValue = value;
-                  _isUpdating = true;
-                  _lastUpdateTime = DateTime.now();
-                });
+          // Set optimistic value immediately for instant UI feedback
+          setState(() {
+            _optimisticValue = value;
+            _isUpdating = true;
+            _lastUpdateTime = DateTime.now();
+          });
 
-                // Call the actual update
-                widget.onChanged(value);
+          // Call the actual update
+          widget.onChanged(value);
 
-                // Set a timeout to revert optimistic value if Firestore doesn't confirm
-                Future.delayed(const Duration(seconds: 3)).then((_) {
-                  if (mounted && _optimisticValue != null) {
-                    // If optimistic value is still set after 3 seconds,
-                    // it means the update failed (e.g., PIN was wrong)
-                    if (widget.isBlocked != _optimisticValue) {
-                      print(
-                        '⚠️ Toggle ${widget.title}: Reverting optimistic value (update not confirmed)',
-                      );
-                      _revertOptimisticValue();
-                    }
-                  }
-                });
+          // Set a timeout to revert optimistic value if Firestore doesn't confirm
+          Future.delayed(const Duration(seconds: 3)).then((_) {
+            if (mounted && _optimisticValue != null) {
+              // If optimistic value is still set after 3 seconds,
+              // it means the update failed (e.g., PIN was wrong)
+              if (widget.isBlocked != _optimisticValue) {
+                print(
+                  '⚠️ Toggle ${widget.title}: Reverting optimistic value (update not confirmed)',
+                );
+                _revertOptimisticValue();
+              }
+            }
+          });
 
-                // Reset updating flag after shorter delay
-                Future.delayed(const Duration(milliseconds: 800)).then((_) {
-                  if (mounted) {
-                    setState(() => _isUpdating = false);
-                  }
-                });
-              },
+          // Reset updating flag after shorter delay
+          Future.delayed(const Duration(milliseconds: 800)).then((_) {
+            if (mounted) {
+              setState(() => _isUpdating = false);
+            }
+          });
+        },
       ),
     );
   }
 }
-
 // ============================================================================
 // 3. WEBSITE BLOCKING SECTION
 // ============================================================================
@@ -1352,10 +1321,6 @@ class _WebsiteBlockingSection extends ConsumerWidget {
               _AddButton(
                 label: 'Add Website',
                 onPressed: () => _showAddWebsiteDialog(context, ref),
-              ),
-              const SizedBox(height: 8),
-              _DiagnosticsButton(
-                onPressed: () => _runWebsiteBlockingDiagnostics(context, ref),
               ),
             ],
           );
@@ -1504,7 +1469,7 @@ class _WebsiteTile extends ConsumerWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withOpacity(0.05)),
       ),
@@ -1522,8 +1487,8 @@ class _WebsiteTile extends ConsumerWidget {
               scale: 0.8,
               child: Switch(
                 value: website.isActive,
-                activeColor: const Color(0xFF82D65D),
-                activeTrackColor: const Color(0xFF82D65D).withOpacity(0.3),
+                activeThumbColor: AppColors.primaryBlue,
+                activeTrackColor: AppColors.primaryBlue.withOpacity(0.3),
                 inactiveTrackColor: Colors.grey.withOpacity(0.2),
                 onChanged: (value) async {
                   // If enabling, check permissions first
@@ -1670,7 +1635,7 @@ class _NotificationBlockingSectionState
         children: [
           Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: Colors.white.withOpacity(0.05)),
             ),
@@ -1682,7 +1647,7 @@ class _NotificationBlockingSectionState
               secondary: Icon(
                 Icons.notifications_off,
                 color: _blockAllNotifications
-                    ? const Color(0xFF82D65D)
+                    ? AppColors.primaryBlue
                     : Colors.grey,
               ),
               title: const Text(
@@ -1694,8 +1659,8 @@ class _NotificationBlockingSectionState
                 style: TextStyle(color: Colors.white.withOpacity(0.5)),
               ),
               value: _blockAllNotifications,
-              activeColor: const Color(0xFF82D65D),
-              activeTrackColor: const Color(0xFF82D65D).withOpacity(0.3),
+              activeThumbColor: AppColors.primaryBlue,
+              activeTrackColor: AppColors.primaryBlue.withOpacity(0.3),
               inactiveTrackColor: Colors.grey.withOpacity(0.2),
               onChanged: (value) {
                 setState(() => _blockAllNotifications = value);
@@ -1735,10 +1700,10 @@ class _BlockSection extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFF82D65D).withOpacity(0.1),
+                //color: const Color(0xFF82D65D).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: const Color(0xFF82D65D), size: 24),
+              child: Icon(icon, size: 24 , color: AppColors.primaryBlue,),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1772,189 +1737,6 @@ class _BlockSection extends StatelessWidget {
   }
 }
 
-// Diagnostics button widget
-class _DiagnosticsButton extends StatelessWidget {
-  final VoidCallback onPressed;
-
-  const _DiagnosticsButton({required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(0xFF82D65D),
-          side: const BorderSide(color: Color(0xFF82D65D)),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-        ),
-        icon: const Icon(Icons.bug_report, size: 20),
-        label: const Text('Run Diagnostics'),
-      ),
-    );
-  }
-}
-
-// Website blocking diagnostics method
-Future<void> _runWebsiteBlockingDiagnostics(
-  BuildContext context,
-  WidgetRef ref,
-) async {
-  try {
-    final nativeService = ref.read(blocksNativeServiceProvider);
-
-    // Show loading
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Running diagnostics...'),
-        duration: Duration(seconds: 1),
-      ),
-    );
-
-    // Get diagnostics
-    final diagnostics = await nativeService.getWebsiteBlockingDiagnostics();
-    final supportedBrowsers = await nativeService.getSupportedBrowsers();
-
-    final result = StringBuffer();
-    result.writeln('🔍 Website Blocking Diagnostics\n');
-
-    // Service status
-    final accessibilityEnabled =
-        diagnostics['accessibilityServiceEnabled'] as bool? ?? false;
-    final serviceRunning = diagnostics['serviceRunning'] as bool? ?? false;
-
-    if (!accessibilityEnabled) {
-      result.writeln('⚠️ Accessibility Service: DISABLED');
-      result.writeln('   Website blocking requires accessibility service');
-      result.writeln('');
-      result.writeln('📋 Enable Steps:');
-      result.writeln('1. Go to Android Settings');
-      result.writeln('2. Accessibility > Lock-In');
-      result.writeln('3. Toggle ON');
-      result.writeln('');
-    } else {
-      result.writeln('✅ Accessibility Service: ENABLED');
-      result.writeln('✅ Service Running: ${serviceRunning ? "YES" : "NO"}');
-    }
-
-    // Active blocked websites
-    final activeWebsites = diagnostics['activeBlockedWebsites'] as List? ?? [];
-    result.writeln('');
-    result.writeln('🚫 Active Blocked Websites: ${activeWebsites.length}');
-    if (activeWebsites.isNotEmpty) {
-      for (var website in activeWebsites) {
-        result.writeln('   • $website');
-      }
-    } else {
-      result.writeln('   No websites currently blocked');
-    }
-
-    // Supported browsers
-    result.writeln('');
-    result.writeln('🌐 Installed Supported Browsers:');
-    if (supportedBrowsers.isNotEmpty) {
-      for (var browser in supportedBrowsers) {
-        result.writeln('   ✓ $browser');
-      }
-    } else {
-      result.writeln('   No supported browsers found');
-    }
-
-    // Testing instructions
-    result.writeln('');
-    result.writeln('🧪 Testing Instructions:');
-    result.writeln('');
-    result.writeln('1. Add a website to block (e.g., "facebook.com")');
-    result.writeln('2. Open any supported browser');
-    result.writeln('3. Navigate to the blocked website');
-    result.writeln('4. You should see:');
-    result.writeln('   • Blocking overlay appears');
-    result.writeln('   • Browser navigates back automatically');
-    result.writeln('');
-
-    if (!accessibilityEnabled) {
-      result.writeln('⚠️ Next Steps:');
-      result.writeln('1. Enable Accessibility Service (see above)');
-      result.writeln('2. Add websites to block');
-      result.writeln('3. Test in any supported browser');
-    } else if (activeWebsites.isEmpty) {
-      result.writeln('💡 Next Steps:');
-      result.writeln('1. Add websites to block above');
-      result.writeln('2. Open a browser');
-      result.writeln('3. Blocking should activate automatically');
-    } else {
-      result.writeln('✅ Ready to Test:');
-      result.writeln('1. Open any supported browser');
-      result.writeln('2. Try visiting a blocked website');
-      result.writeln('3. Blocking should work automatically');
-    }
-
-    // Show results
-    if (context.mounted) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: const Color(0xFF1E1E1E),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          title: const Text(
-            'Diagnostics Report',
-            style: TextStyle(color: Colors.white),
-          ),
-          content: SingleChildScrollView(
-            child: Text(
-              result.toString(),
-              style: const TextStyle(
-                color: Colors.white,
-                fontFamily: 'monospace',
-                fontSize: 12,
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Close',
-                style: TextStyle(color: Color(0xFF82D65D)),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-  } catch (e) {
-    print('❌ Diagnostics error: $e');
-    if (context.mounted) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: const Color(0xFF1E1E1E),
-          title: const Text('Error', style: TextStyle(color: Colors.white)),
-          content: Text(
-            'Failed to run diagnostics: $e',
-            style: const TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'OK',
-                style: TextStyle(color: Color(0xFF82D65D)),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-  }
-}
-
 class _EmptyState extends StatelessWidget {
   final IconData icon;
   final String message;
@@ -1974,7 +1756,7 @@ class _EmptyState extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: Colors.white.withOpacity(0.05)),
       ),

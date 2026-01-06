@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:lock_in/core/theme/app_theme.dart';
 import 'package:lock_in/presentation/providers/auth_provider.dart';
 import 'package:lock_in/presentation/providers/parental_control_provider.dart';
 import 'package:lock_in/presentation/providers/profile_provider.dart';
 import 'package:lock_in/models/parental_control.dart';
 import 'package:lock_in/widgets/parental_control_dialogs.dart';
+import 'package:lock_in/presentation/screens/splash_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -84,7 +86,12 @@ class ProfileScreen extends ConsumerWidget {
                         // Weekly Reports Section
                         _buildWeeklyReportsSection(context),
 
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 24),
+
+                        // Sign Out Button
+                        _buildSignOutButton(context, ref),
+
+                        const SizedBox(height: 24),
                       ],
                     ),
                   ),
@@ -109,7 +116,7 @@ class ProfileScreen extends ConsumerWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF82D65D), Color(0xFF6BB84D)],
+          colors: [AppColors.primaryBlue , AppColors.lightBlue],
         ),
       ),
       child: Column(
@@ -140,7 +147,6 @@ class ProfileScreen extends ConsumerWidget {
             height: 120,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: const Color(0xFF5CAF3C),
               border: Border.all(
                 color: Colors.white.withOpacity(0.3),
                 width: 3,
@@ -289,9 +295,9 @@ class ProfileScreen extends ConsumerWidget {
                     'Upgrade to Pro',
                     style: TextStyle(
                       fontSize: 13,
-                      color: Color(0xFF82D65D),
+                      color: AppColors.primaryBlue,
                       decoration: TextDecoration.underline,
-                      decorationColor: Color(0xFF82D65D),
+                      decorationColor: AppColors.primaryBlue,
                     ),
                   ),
                 ),
@@ -303,7 +309,7 @@ class ProfileScreen extends ConsumerWidget {
             width: 80,
             height: 80,
             decoration: BoxDecoration(
-              color: const Color(0xFF82D65D),
+              color: AppColors.primaryBlue,
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Center(
@@ -352,14 +358,14 @@ class ProfileScreen extends ConsumerWidget {
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: parentalControl.isEnabled
-                        ? const Color(0xFF82D65D).withOpacity(0.2)
-                        : const Color(0xFF2A2A2A),
+                        ? AppColors.primaryBlue.withOpacity(0.2)
+                        : AppColors.primaryBlue,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
                     Icons.lock,
                     color: parentalControl.isEnabled
-                        ? const Color(0xFF82D65D)
+                        ? AppColors.primaryBlue
                         : Colors.white54,
                     size: 24,
                   ),
@@ -379,13 +385,13 @@ class ProfileScreen extends ConsumerWidget {
                   style: TextStyle(
                     fontSize: 13,
                     color: parentalControl.isEnabled
-                        ? const Color(0xFF82D65D)
+                        ? AppColors.primaryBlue
                         : Colors.white54,
                   ),
                 ),
                 trailing: Switch(
                   value: parentalControl.isEnabled,
-                  activeColor: const Color(0xFF82D65D),
+                  activeThumbColor: AppColors.primaryBlue,
                   onChanged: (value) async {
                     if (value) {
                       // Enabling parental mode
@@ -407,7 +413,7 @@ class ProfileScreen extends ConsumerWidget {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
                                         content: Text('Parental mode enabled'),
-                                        backgroundColor: Color(0xFF82D65D),
+                                        backgroundColor: AppColors.primaryBlue,
                                       ),
                                     );
                                   }
@@ -557,7 +563,7 @@ class ProfileScreen extends ConsumerWidget {
                                     content: Text(
                                       'Password changed successfully',
                                     ),
-                                    backgroundColor: Color(0xFF82D65D),
+                                    backgroundColor:AppColors.primaryBlue,
                                   ),
                                 );
                               }
@@ -609,7 +615,7 @@ class ProfileScreen extends ConsumerWidget {
               children: [
                 _buildStatCard(
                   icon: Icons.access_time,
-                  iconColor: const Color(0xFF82D65D),
+                  iconColor: AppColors.primaryBlue,
                   title: 'Total Time Saved',
                   value: stats.totalTimeSaved > 0
                       ? stats.getFormattedTimeSaved()
@@ -627,12 +633,12 @@ class ProfileScreen extends ConsumerWidget {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF82D65D).withOpacity(0.2),
+                          color: AppColors.primaryBlue.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Icon(
                           Icons.center_focus_strong,
-                          color: Color(0xFF82D65D),
+                          color:AppColors.primaryBlue,
                           size: 24,
                         ),
                       ),
@@ -653,7 +659,7 @@ class ProfileScreen extends ConsumerWidget {
                               'Come back tomorrow to see your progress! ✨',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Color(0xFF82D65D),
+                                color: AppColors.primaryBlue,
                               ),
                             ),
                           ],
@@ -738,7 +744,7 @@ class ProfileScreen extends ConsumerWidget {
               },
               child: const Text(
                 'View all',
-                style: TextStyle(color: Color(0xFF82D65D), fontSize: 14),
+                style: TextStyle(color: AppColors.primaryBlue, fontSize: 14),
               ),
             ),
           ],
@@ -788,8 +794,8 @@ class ProfileScreen extends ConsumerWidget {
             height: 60,
             decoration: BoxDecoration(
               color: isLocked
-                  ? const Color(0xFF2A2A2A)
-                  : const Color(0xFF82D65D).withOpacity(0.2),
+                  ? AppColors.primaryBlue
+                  : AppColors.primaryBlue.withOpacity(0.2),
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -891,8 +897,6 @@ class ProfileScreen extends ConsumerWidget {
                   icon: const Icon(Icons.share),
                   label: const Text('Invite friends'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF82D65D),
-                    foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(100),
@@ -917,7 +921,7 @@ class ProfileScreen extends ConsumerWidget {
             height: 40,
             decoration: BoxDecoration(
               color: isActive
-                  ? const Color(0xFF82D65D)
+                  ? AppColors.primaryBlue
                   : const Color(0xFF2A2A2A),
               shape: BoxShape.circle,
             ),
@@ -968,12 +972,12 @@ class ProfileScreen extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF82D65D).withOpacity(0.2),
+                  color:AppColors.primaryBlue.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
                   Icons.description,
-                  color: Color(0xFF82D65D),
+                  color: AppColors.primaryBlue,
                   size: 24,
                 ),
               ),
@@ -1006,6 +1010,121 @@ class ProfileScreen extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSignOutButton(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authNotifierProvider);
+    final isSigningOut = authState.isSigningOut;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 8,
+        ),
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.red.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(
+            Icons.logout,
+            color: Colors.red,
+            size: 24,
+          ),
+        ),
+        title: const Text(
+          'Sign Out',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
+        subtitle: const Text(
+          'Sign out of your account',
+          style: TextStyle(fontSize: 13, color: Colors.white54),
+        ),
+        trailing: isSigningOut
+            ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                ),
+              )
+            : const Icon(
+                Icons.chevron_right,
+                color: Colors.white54,
+              ),
+        onTap: isSigningOut
+            ? null
+            : () async {
+                // Show confirmation dialog
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    backgroundColor: const Color(0xFF1E1E1E),
+                    title: const Text(
+                      'Sign Out',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    content: const Text(
+                      'Are you sure you want to sign out?',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(color: Colors.white54),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: const Text(
+                          'Sign Out',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+
+                // If user confirmed, sign out
+                if (confirmed == true && context.mounted) {
+                  await ref.read(authNotifierProvider.notifier).signOut();
+
+                  // Check for errors
+                  final error = ref.read(authErrorProvider);
+                  if (error != null && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(error),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  } else if (context.mounted) {
+                    // Successfully signed out - navigate to splash screen
+                    // This will clear the navigation stack and show entry screen
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (context) => const SplashScreen(),
+                      ),
+                      (route) => false,
+                    );
+                  }
+                }
+              },
+      ),
     );
   }
 }
